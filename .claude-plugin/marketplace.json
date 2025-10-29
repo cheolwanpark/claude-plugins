@@ -7,10 +7,7 @@
     "plugins": [
         {
             "name": "prompt-improver",
-            "source": {
-                "source": "github",
-                "repo": "severity1/claude-code-prompt-improver"
-            },
+            "source": "./claude-code-prompt-improver",
             "description": "Intelligent prompt improver hook for Claude Code. Type vibes, ship precision.",
             "author": {
                  "name": "severity1"
