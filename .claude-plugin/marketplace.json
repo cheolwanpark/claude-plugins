@@ -1,0 +1,22 @@
+{
+    "name": "personal-curation",
+    "owner": {
+        "name": "Cheolwan Park",
+        "email": "cheolwan.park552@gmail.com"
+    },
+    "plugins": [
+        {
+            "name": "prompt-improver",
+            "source": {
+                "source": "github",
+                "repo": "severity1/claude-code-prompt-improver"
+            },
+            "description": "Intelligent prompt improver hook for Claude Code. Type vibes, ship precision.",
+            "author": {
+                 "name": "severity1"
+            },
+            "repository": "https://github.com/severity1/claude-code-prompt-improver",
+            "license": "MIT"
+        }
+    ]
+}
