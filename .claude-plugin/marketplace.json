@@ -6,16 +6,6 @@
     },
     "plugins": [
         {
-            "name": "prompt-improver",
-            "source": "./plugins/claude-code-prompt-improver",
-            "description": "Intelligent prompt improver hook for Claude Code. Type vibes, ship precision.",
-            "author": {
-                 "name": "severity1"
-            },
-            "repository": "https://github.com/severity1/claude-code-prompt-improver",
-            "license": "MIT"
-        },
-        {
             "name": "research",
             "description": "A research toolkit for claude code",
             "source": "./plugins/research",
