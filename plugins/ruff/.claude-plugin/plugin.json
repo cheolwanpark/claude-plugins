@@ -1,0 +1,19 @@
+{
+  "name": "ruff",
+  "description": "Automatically lint and format Python files with ruff",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cheolwan Park",
+    "url": "https://github.com/cheolwanpark"
+  },
+  "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "python",
+    "linting",
+    "formatting",
+    "ruff",
+    "code-quality"
+  ],
+  "hooks": "./hooks/hooks.json"
+}

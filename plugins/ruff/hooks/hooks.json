@@ -1,0 +1,17 @@
+{
+  "description": "Automatically lint and format Python files after editing or writing",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/ruff-lint-format.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

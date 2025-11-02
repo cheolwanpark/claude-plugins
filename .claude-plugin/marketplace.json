@@ -21,7 +21,18 @@
             "source": "./plugins/research",
             "author": {
                 "name": "Cheolwan Park",
-                "url": "https://github.com/cheolwanpark" 
+                "url": "https://github.com/cheolwanpark"
+            },
+            "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+            "license": "MIT"
+        },
+        {
+            "name": "ruff",
+            "description": "Automatically lint and format Python files with ruff",
+            "source": "./plugins/ruff",
+            "author": {
+                "name": "Cheolwan Park",
+                "url": "https://github.com/cheolwanpark"
             },
             "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
             "license": "MIT"
