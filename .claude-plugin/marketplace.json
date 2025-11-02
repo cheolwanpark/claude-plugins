@@ -36,6 +36,17 @@
             },
             "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
             "license": "MIT"
+        },
+        {
+            "name": "auto-review",
+            "description": "Automated code review using gemini-cli and codex",
+            "source": "./plugins/auto-review",
+            "author": {
+                "name": "Cheolwan Park",
+                "url": "https://github.com/cheolwanpark"
+            },
+            "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+            "license": "MIT"
         }
     ]
 }

@@ -4,11 +4,9 @@ Automatically lint and format Python files with [ruff](https://github.com/astral
 
 ## Features
 
-- **Auto-fix linting issues**: Automatically fixes common Python linting violations (unused imports, formatting issues, etc.)
-- **Auto-format code**: Formats Python code using Black-compatible style
-- **Intelligent error reporting**: Reports unfixable linting issues back to Claude for resolution
-- **Zero configuration**: Works out of the box with sensible defaults
-- **Fast**: Powered by ruff, an extremely fast Python linter written in Rust
+- Auto-fixes common Python linting violations (unused imports, formatting issues, etc.)
+- Formats code using Black-compatible style
+- Reports unfixable issues back to Claude for resolution
 
 ## Requirements
 
@@ -17,6 +15,9 @@ You must have `ruff` installed on your system:
 ```bash
 # Install with pip
 pip install ruff
+
+# Or with uv
+uv add --dev ruff
 
 # Or with Homebrew (macOS)
 brew install ruff
@@ -46,36 +47,15 @@ The plugin uses a PostToolUse hook that triggers after Claude uses the `Edit` or
 1. **Detects Python files**: Only processes files with `.py` extension
 2. **Auto-fixes violations**: Runs `ruff check --fix` to automatically fix linting issues
 3. **Formats code**: Runs `ruff format` to apply consistent formatting
-4. **Reports errors**: If there are unfixable linting violations, reports them to Claude
+4. **Reports errors**: If there are unfixable linting violations, reports them to Claude and blocks execution to prevent building on broken code
 
-### Example Workflow
-
-```python
-# Claude writes this messy code:
-import os
-import sys
-import json
-x=1+2
-def foo( ):
-    pass
-```
-
-**Hook automatically transforms it to:**
-
-```python
-# Unused imports removed, code formatted
-x = 1 + 2
-
-
-def foo():
-    pass
-```
+**Example:** Claude writes `import os; x=1+2` → Hook transforms to `x = 1 + 2` (unused import removed, spacing fixed)
 
 ## Configuration
 
 ### Custom Ruff Settings
 
-Create a `pyproject.toml` or `ruff.toml` in your project root to customize ruff behavior:
+Create a `pyproject.toml` in your project root to customize ruff behavior:
 
 ```toml
 # pyproject.toml
@@ -92,93 +72,22 @@ quote-style = "double"
 indent-style = "space"
 ```
 
-Or standalone `ruff.toml`:
-
-```toml
-line-length = 100
-target-version = "py311"
-
-[lint]
-select = ["E", "F", "I", "N", "W"]
-ignore = ["E501"]
-
-[format]
-quote-style = "double"
-```
-
-### Hook Timeout
-
-The hook has a default timeout of 30 seconds. To change this, edit `hooks/hooks.json`:
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/ruff-lint-format.sh",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+Alternatively, use `ruff.toml` or `.ruff.toml`. See the [ruff configuration docs](https://docs.astral.sh/ruff/configuration/) for all options.
 
 ## What Gets Auto-Fixed
 
-Ruff can automatically fix many common issues:
-
-- **Import sorting**: Organizes imports alphabetically
-- **Unused imports**: Removes unused import statements
-- **Unused variables**: Removes unused variable assignments
-- **Whitespace**: Fixes trailing whitespace, blank lines
-- **Formatting**: Applies Black-compatible code style
-- **Quote normalization**: Standardizes quote usage
-- **And many more**: See [ruff rules](https://docs.astral.sh/ruff/rules/)
+Ruff can automatically fix many issues including unused imports, import sorting, whitespace, formatting (Black-compatible), and quote normalization. See the full list of [auto-fixable ruff rules](https://docs.astral.sh/ruff/rules/).
 
 ## What Gets Reported
 
-If ruff finds issues it cannot auto-fix, Claude will see them and can address them:
-
-- **Syntax errors**: Invalid Python syntax
-- **Undefined names**: Variables used before definition
-- **Type errors**: If using type checkers
-- **Complex violations**: Issues requiring manual intervention
+Unfixable issues (syntax errors, undefined names, type errors, complex violations) are reported to Claude and block execution until resolved.
 
 ## Troubleshooting
 
-### Hook not running
-
-1. Check that ruff is installed: `which ruff`
-2. Verify the plugin is enabled in Claude Code
-3. Run `claude --debug` to see hook execution logs
-
-### Ruff not found error
-
-Install ruff:
-
-```bash
-pip install ruff
-# or
-brew install ruff
-```
-
-### Script permission denied
-
-Make the script executable:
-
-```bash
-chmod +x plugins/ruff/hooks/ruff-lint-format.sh
-```
-
-### Timeout errors
-
-Increase the timeout in `hooks/hooks.json` if working with very large files.
+- **Hook not running**: Check `which ruff` to verify installation, confirm plugin is enabled, or run `claude --debug` for logs
+- **Ruff not found**: Install with `pip install ruff`, `uv add --dev ruff`, or `brew install ruff`
+- **Permission denied**: Run `chmod +x plugins/ruff/hooks/ruff-lint-format.sh`
+- **Timeout errors**: Increase timeout in `hooks/hooks.json` for large files
 
 ## License
 
