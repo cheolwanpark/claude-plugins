@@ -14,6 +14,17 @@
             },
             "repository": "https://github.com/severity1/claude-code-prompt-improver",
             "license": "MIT"
+        },
+        {
+            "name": "research",
+            "description": "A research toolkit for claude code",
+            "source": "./plugins/research",
+            "author": {
+                "name": "Cheolwan Park",
+                "url": "https://github.com/cheolwanpark" 
+            },
+            "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+            "license": "MIT"
         }
     ]
 }

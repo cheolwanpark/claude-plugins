@@ -1,0 +1,38 @@
+{
+    "mcpServers": {
+        "grep": {
+            "type": "http",
+            "url": "https://mcp.grep.app"
+        },
+        "reddit": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": [
+                "--from",
+                "git+https://github.com/adhikasp/mcp-reddit.git",
+                "mcp-reddit"
+            ],
+            "env": {}
+        },
+        "brave-search": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@brave/brave-search-mcp-server"
+            ],
+            "env": {
+                "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+            }
+        },
+        "arxiv": {
+            "command": "uv",
+            "args": [
+                "tool",
+                "run",
+                "arxiv-mcp-server",
+                "--storage-path", "${PWD}/arxiv-papers"
+            ]
+        }
+    }
+}

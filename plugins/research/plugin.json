@@ -1,0 +1,18 @@
+{
+  "name": "research",
+  "description": "A research toolkit for claude code",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cheolwan Park",
+    "url": "https://github.com/cheolwanpark" 
+  },
+  "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "claude",
+    "research",
+    "reddit",
+    "arxiv",
+    "github"
+  ]
+}
