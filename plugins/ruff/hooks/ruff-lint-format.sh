@@ -34,54 +34,89 @@ fi
 
 # Check if ruff is installed
 if ! command -v ruff &> /dev/null; then
-    echo "Warning: ruff is not installed. Install it with: `uv add --dev ruff`" >&2
-    exit 1
+    # Report missing ruff as JSON context, don't block the operation
+    if command -v jq &> /dev/null; then
+        jq -n '{hookSpecificOutput: {additionalContext: {error: "ruff is not installed. Install it with: uv add --dev ruff"}}}'
+    else
+        echo '{"hookSpecificOutput": {"additionalContext": {"error": "ruff is not installed"}}}'
+    fi
+    exit 0
 fi
 
-# Temporary file to capture ruff output
-TEMP_OUTPUT=$(mktemp)
-trap 'rm -f "$TEMP_OUTPUT"' EXIT
+# Initialize variables
+FORMAT_FAILED=""
+FORMAT_STDERR=""
 
-# Run ruff check --fix to auto-fix linting issues
-# Capture output and exit code
-set +e
-ruff check --fix "$FILE_PATH" > "$TEMP_OUTPUT" 2>&1
-CHECK_EXIT=$?
-set -e
+# Run ruff check --fix and format
+# Suppress output since we'll get diagnostics at the end
+ruff check --fix --exit-zero "$FILE_PATH" > /dev/null 2>&1
 
-# Run ruff format to format the code
-# This should always succeed for valid Python syntax
-set +e
-ruff format "$FILE_PATH" >> "$TEMP_OUTPUT" 2>&1
-FORMAT_EXIT=$?
-set -e
+# Run ruff format and capture stderr (not stdout which just lists formatted files)
+FORMAT_STDERR=$(ruff format "$FILE_PATH" 2>&1 >/dev/null) || FORMAT_FAILED="true"
 
-# If there were unfixable linting errors, report them to Claude
-# ruff check exits with:
-# - 0 if no violations found
-# - 1 if violations found (some may have been fixed)
-# - 2 for fatal errors
-if [[ $CHECK_EXIT -ne 0 ]]; then
-    # Check if there are still violations after fixing
-    set +e
-    ruff check "$FILE_PATH" --output-format=text > "$TEMP_OUTPUT" 2>&1
-    RECHECK_EXIT=$?
-    set -e
+# Run final check once to capture any remaining unfixable issues in JSON format
+# Separate stdout and stderr - only stdout should contain JSON
+DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" --output-format=json --exit-zero 2>/dev/null)
 
-    if [[ $RECHECK_EXIT -ne 0 ]]; then
-        # There are unfixable violations - report to Claude
-        echo "Ruff found unfixable linting issues in $FILE_PATH:" >&2
-        cat "$TEMP_OUTPUT" >&2
-        exit 2  # Exit code 2 blocks and shows error to Claude
+# Validate that we got valid JSON from ruff
+if ! echo "$DIAGNOSTICS_JSON" | jq -e . >/dev/null 2>&1; then
+    # ruff check failed or output invalid JSON
+    DIAGNOSTICS_JSON="[]"
+fi
+
+# Check if there are any issues to report
+# Use jq to properly check if diagnostics array is empty
+HAS_DIAGNOSTICS=$(echo "$DIAGNOSTICS_JSON" | jq 'length > 0' 2>/dev/null || echo "false")
+
+# Report issues to Claude if any diagnostics exist or formatting failed
+if [[ "$HAS_DIAGNOSTICS" == "true" ]] || [[ -n "$FORMAT_FAILED" ]]; then
+    # Check if jq is available for proper JSON generation
+    if command -v jq &> /dev/null; then
+        # Always use consistent object schema
+        jq -n \
+            --argjson lintingIssues "$DIAGNOSTICS_JSON" \
+            --arg formatError "${FORMAT_STDERR:-}" \
+            '{
+                hookSpecificOutput: {
+                    additionalContext: {
+                        lintingIssues: $lintingIssues,
+                        formatError: (if $formatError == "" then null else $formatError end)
+                    }
+                }
+            }'
+    elif command -v python3 &> /dev/null; then
+        # Fallback to python3 if jq is not available
+        # Use proper argument passing to avoid injection
+        python3 -c '
+import json
+import sys
+
+diagnostics_json = sys.argv[1]
+format_error = sys.argv[2] if len(sys.argv) > 2 else ""
+
+try:
+    diagnostics = json.loads(diagnostics_json)
+except json.JSONDecodeError:
+    diagnostics = []
+
+context = {
+    "lintingIssues": diagnostics,
+    "formatError": format_error if format_error else None
+}
+
+output = {
+    "hookSpecificOutput": {
+        "additionalContext": context
+    }
+}
+print(json.dumps(output))
+' "$DIAGNOSTICS_JSON" "${FORMAT_STDERR:-}"
+    else
+        # No JSON tools available, output minimal valid JSON
+        echo '{"hookSpecificOutput": {"additionalContext": {"error": "jq and python3 not available"}}}'
     fi
 fi
 
-# Check if formatting failed
-if [[ $FORMAT_EXIT -ne 0 ]]; then
-    echo "Ruff formatting failed for $FILE_PATH:" >&2
-    cat "$TEMP_OUTPUT" >&2
-    exit 2
-fi
-
-# Success - file was linted and formatted
+# Always exit with 0 to allow the operation to proceed
+# Issues are reported to Claude via JSON output above
 exit 0
