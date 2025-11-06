@@ -1,7 +1,7 @@
 {
-  "name": "ruff",
-  "description": "Automatically lint and format Python files with ruff",
-  "version": "1.0.0",
+  "name": "python-lint",
+  "description": "Automatically lint, format, and type-check Python files with ruff and pyright",
+  "version": "2.0.0",
   "author": {
     "name": "Cheolwan Park",
     "url": "https://github.com/cheolwanpark"
@@ -12,7 +12,10 @@
     "python",
     "linting",
     "formatting",
+    "type-checking",
     "ruff",
+    "pyright",
+    "static-analysis",
     "code-quality"
   ],
   "hooks": "./hooks/hooks.json"

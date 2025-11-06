@@ -17,9 +17,9 @@
             "license": "MIT"
         },
         {
-            "name": "ruff",
-            "description": "Automatically lint and format Python files with ruff",
-            "source": "./plugins/ruff",
+            "name": "python-lint",
+            "description": "Automatically lint, format, and type-check Python files with ruff and pyright",
+            "source": "./plugins/python-lint",
             "author": {
                 "name": "Cheolwan Park",
                 "url": "https://github.com/cheolwanpark"
