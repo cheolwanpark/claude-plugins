@@ -16,11 +16,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Source common library
+# shellcheck disable=SC1091
+source "$PLUGIN_ROOT/scripts/python-lint-common.sh"
+
 # Read JSON input from stdin
 INPUT=$(cat)
 
 # Extract file path from the hook input
-FILE_PATH=$(echo "$INPUT" | python3 -c "import sys, json; data = json.load(sys.stdin); print(data.get('tool_input', {}).get('file_path', ''))" 2>/dev/null || echo "")
+FILE_PATH=$(_pyl_parse_file_path "$INPUT")
 
 # If no file path found, exit silently
 if [[ -z "$FILE_PATH" ]]; then
@@ -37,106 +41,57 @@ if [[ ! -f "$FILE_PATH" ]]; then
     exit 0
 fi
 
-# Check if required tools are installed
-MISSING_TOOLS=()
-
-if ! command -v ruff &> /dev/null; then
-    MISSING_TOOLS+=("ruff")
-fi
-
-if ! command -v pyright &> /dev/null; then
-    MISSING_TOOLS+=("pyright")
-fi
-
-if ! command -v jq &> /dev/null; then
-    MISSING_TOOLS+=("jq")
-fi
-
-if ! command -v realpath &> /dev/null; then
-    MISSING_TOOLS+=("realpath")
-fi
-
-# If any critical tools are missing, report and exit
-if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
-    TOOLS_LIST=$(IFS=", "; echo "${MISSING_TOOLS[*]}")
-    if command -v jq &> /dev/null; then
-        jq -n --arg tools "$TOOLS_LIST" '{hookSpecificOutput: {additionalContext: {error: ("Missing required tools: " + $tools + ". Install with: brew install " + $tools)}}}'
-    else
-        echo "{\"hookSpecificOutput\": {\"additionalContext\": {\"error\": \"Missing required tools: $TOOLS_LIST\"}}}"
-    fi
+# Check if required tools are installed (realpath is optional now)
+if ! _pyl_check_required_tools ruff pyright jq; then
+    TOOLS_LIST=$(IFS=", "; echo "${_PYL_MISSING_TOOLS[*]}")
+    _pyl_json_response "allow" "Missing required tools: $TOOLS_LIST. Install with: brew install $TOOLS_LIST"
     exit 0
 fi
+
+# Find project root from file's directory
+FILE_DIR=$(dirname "$FILE_PATH")
+PROJECT_ROOT=$(_pyl_find_project_root "$FILE_DIR")
+
+# Activate virtual environment if present
+_pyl_activate_venv "$PROJECT_ROOT"
+
+# Build ruff config arguments
+_pyl_build_ruff_config_args "$PROJECT_ROOT" "$PLUGIN_ROOT"
 
 # Initialize variables
 FORMAT_FAILED=""
 FORMAT_STDERR=""
 
-# Find project root (look for config files)
-PROJECT_ROOT=""
-CURRENT_DIR=$(dirname "$(realpath "$FILE_PATH")")
-
-while [[ "$CURRENT_DIR" != "/" ]]; do
-    if [[ -f "$CURRENT_DIR/pyproject.toml" ]] || [[ -f "$CURRENT_DIR/pyrightconfig.json" ]] || [[ -f "$CURRENT_DIR/ruff.toml" ]] || [[ -f "$CURRENT_DIR/.ruff.toml" ]]; then
-        PROJECT_ROOT="$CURRENT_DIR"
-        break
-    fi
-    CURRENT_DIR=$(dirname "$CURRENT_DIR")
-done
-
-# If no project root found, use the file's directory
-if [[ -z "$PROJECT_ROOT" ]]; then
-    PROJECT_ROOT=$(dirname "$(realpath "$FILE_PATH")")
-fi
-
-# Determine which Ruff config to use
-# If user has a project-level config, respect it; otherwise use plugin's default
-HAS_RUFF_CONFIG=false
-
-# Check for dedicated ruff config files
-if [[ -f "$PROJECT_ROOT/ruff.toml" ]] || [[ -f "$PROJECT_ROOT/.ruff.toml" ]]; then
-    HAS_RUFF_CONFIG=true
-# Check if pyproject.toml contains [tool.ruff] section
-elif [[ -f "$PROJECT_ROOT/pyproject.toml" ]]; then
-    if grep -q '^\[tool\.ruff' "$PROJECT_ROOT/pyproject.toml" 2>/dev/null; then
-        HAS_RUFF_CONFIG=true
-    fi
-fi
-
-# Build config args as array to handle paths with spaces
-RUFF_CONFIG_ARGS=()
-if [[ "$HAS_RUFF_CONFIG" == "false" ]]; then
-    # Use plugin's default config for comprehensive whitespace checking
-    RUFF_CONFIG_ARGS=(--config "$PLUGIN_ROOT/ruff.toml")
-fi
-
 # Run ruff check --fix and format
 # Suppress output since we'll get diagnostics at the end
-ruff check --fix ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --exit-zero "$FILE_PATH" > /dev/null 2>&1
+ruff check --fix ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} --exit-zero "$FILE_PATH" > /dev/null 2>&1
 
-# Run ruff format with same config and capture stderr (note: 2>&1 must come before >/dev/null)
-FORMAT_STDERR=$(ruff format ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} "$FILE_PATH" 2>&1 1>/dev/null) || FORMAT_FAILED="true"
+# Run ruff format with same config and capture stderr
+FORMAT_STDERR=$(ruff format ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} "$FILE_PATH" 2>&1 1>/dev/null) || FORMAT_FAILED="true"
 
 # Run final ruff check to capture any remaining unfixable issues in JSON format
-RUFF_DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --output-format=json --exit-zero 2>/dev/null)
+RUFF_DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} --output-format=json --exit-zero 2>/dev/null)
 
 # Validate that we got valid JSON from ruff
 if ! echo "$RUFF_DIAGNOSTICS_JSON" | jq -e . >/dev/null 2>&1; then
     RUFF_DIAGNOSTICS_JSON="[]"
 fi
 
-# Get relative path from project root (PROJECT_ROOT was determined earlier)
-RELATIVE_FILE_PATH=$(realpath --relative-to="$PROJECT_ROOT" "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
+# Get relative path from project root for pyright
+RELATIVE_FILE_PATH=$(_pyl_get_relative_path "$FILE_PATH" "$PROJECT_ROOT")
 
 # Run pyright from project root
 PYRIGHT_JSON=""
 PYRIGHT_FAILED=""
 PYRIGHT_ERROR=""
 
-# Change to project root and run pyright (capture stdout and stderr separately)
+# Create temp files for pyright output with proper cleanup
 PYRIGHT_STDERR_FILE=$(mktemp)
+trap 'rm -f "$PYRIGHT_STDERR_FILE"' EXIT
+
+# Change to project root and run pyright (capture stdout and stderr separately)
 PYRIGHT_OUTPUT=$(cd "$PROJECT_ROOT" && pyright "$RELATIVE_FILE_PATH" --outputjson 2>"$PYRIGHT_STDERR_FILE") || PYRIGHT_FAILED="true"
 PYRIGHT_STDERR=$(cat "$PYRIGHT_STDERR_FILE")
-rm -f "$PYRIGHT_STDERR_FILE"
 
 # Try to parse pyright stdout as JSON
 if echo "$PYRIGHT_OUTPUT" | jq -e . >/dev/null 2>&1; then
@@ -157,8 +112,7 @@ fi
 # Extract and filter pyright diagnostics for the edited file only
 # Convert zero-based line/column numbers to one-based
 # Filter by absolute path (pyright returns absolute paths in diagnostics)
-# Also handle diagnostics that may not have ranges (skip them)
-ABSOLUTE_FILE_PATH=$(realpath "$FILE_PATH")
+ABSOLUTE_FILE_PATH=$(_pyl_get_absolute_path "$FILE_PATH")
 PYRIGHT_DIAGNOSTICS=$(echo "$PYRIGHT_JSON" | jq --arg filepath "$ABSOLUTE_FILE_PATH" '
 .generalDiagnostics
 | map(select(.file == $filepath))
@@ -275,17 +229,7 @@ if [[ "$HAS_RUFF_ISSUES" == "true" ]] || [[ "$HAS_PYRIGHT_ISSUES" == "true" ]] |
     # Remove trailing newlines
     CONTEXT_MESSAGE=$(echo -e "$CONTEXT_MESSAGE" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
 
-    jq -n \
-        --arg reason "Python linting/type checking found issues: $REASON" \
-        --arg context "$CONTEXT_MESSAGE" \
-        '{
-            decision: "block",
-            reason: $reason,
-            hookSpecificOutput: {
-                hookEventName: "PostToolUse",
-                additionalContext: $context
-            }
-        }'
+    _pyl_json_response "block" "Python linting/type checking found issues: $REASON" "PostToolUse" "$CONTEXT_MESSAGE"
 fi
 
 # Always exit with 0 to allow the operation to proceed
