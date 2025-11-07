@@ -197,23 +197,97 @@ HAS_PYRIGHT_ISSUES=$(echo "$PYRIGHT_DIAGNOSTICS" | jq 'length > 0' 2>/dev/null |
 
 # Report issues to Claude if any diagnostics exist, formatting failed, or pyright had errors
 if [[ "$HAS_RUFF_ISSUES" == "true" ]] || [[ "$HAS_PYRIGHT_ISSUES" == "true" ]] || [[ -n "$FORMAT_FAILED" ]] || [[ -n "$PYRIGHT_ERROR" ]]; then
+    # Count issues for summary
+    RUFF_COUNT=$(echo "$RUFF_DIAGNOSTICS_JSON" | jq 'length' 2>/dev/null || echo "0")
+    PYRIGHT_COUNT=$(echo "$PYRIGHT_DIAGNOSTICS" | jq 'length' 2>/dev/null || echo "0")
+
+    # Build reason message
+    REASON_PARTS=()
+    if [[ "$RUFF_COUNT" -gt 0 ]]; then
+        REASON_PARTS+=("$RUFF_COUNT linting issue(s)")
+    fi
+    if [[ "$PYRIGHT_COUNT" -gt 0 ]]; then
+        REASON_PARTS+=("$PYRIGHT_COUNT type error(s)")
+    fi
+    if [[ -n "$FORMAT_FAILED" ]]; then
+        REASON_PARTS+=("formatting failed")
+    fi
+    if [[ -n "$PYRIGHT_ERROR" ]]; then
+        REASON_PARTS+=("pyright error")
+    fi
+
+    # Join reason parts with commas
+    REASON=$(IFS=", "; echo "${REASON_PARTS[*]}")
+
+    # Format ruff diagnostics as concise text (limit to 10)
+    RUFF_TEXT=""
+    if [[ "$RUFF_COUNT" -gt 0 ]]; then
+        RUFF_TEXT=$(echo "$RUFF_DIAGNOSTICS_JSON" | jq -r '
+            .[0:10] | map(
+                "  - line \(.location.row):\(.location.column) [\(.code)] \(.message)"
+            ) | join("\n")
+        ' 2>/dev/null || echo "")
+
+        if [[ "$RUFF_COUNT" -gt 10 ]]; then
+            REMAINING=$((RUFF_COUNT - 10))
+            RUFF_TEXT="$RUFF_TEXT\n  ... and $REMAINING more"
+        fi
+    fi
+
+    # Format pyright diagnostics as concise text (limit to 10)
+    PYRIGHT_TEXT=""
+    if [[ "$PYRIGHT_COUNT" -gt 0 ]]; then
+        PYRIGHT_TEXT=$(echo "$PYRIGHT_DIAGNOSTICS" | jq -r '
+            .[0:10] | map(
+                if .range then
+                    "  - line \(.range.start.line):\(.range.start.character) [\(.severity)] \(.message)"
+                else
+                    "  - [\(.severity)] \(.message)"
+                end
+            ) | join("\n")
+        ' 2>/dev/null || echo "")
+
+        if [[ "$PYRIGHT_COUNT" -gt 10 ]]; then
+            REMAINING=$((PYRIGHT_COUNT - 10))
+            PYRIGHT_TEXT="$PYRIGHT_TEXT\n  ... and $REMAINING more"
+        fi
+    fi
+
+    # Build formatted context message
+    CONTEXT_MESSAGE=""
+
+    if [[ -n "$RUFF_TEXT" ]]; then
+        CONTEXT_MESSAGE="${CONTEXT_MESSAGE}Linting Issues ($RUFF_COUNT):\n$RUFF_TEXT\n\n"
+    fi
+
+    if [[ -n "$PYRIGHT_TEXT" ]]; then
+        CONTEXT_MESSAGE="${CONTEXT_MESSAGE}Type Errors ($PYRIGHT_COUNT):\n$PYRIGHT_TEXT\n\n"
+    fi
+
+    if [[ -n "$FORMAT_FAILED" ]]; then
+        CONTEXT_MESSAGE="${CONTEXT_MESSAGE}Formatting Error:\n  $FORMAT_STDERR\n\n"
+    fi
+
+    if [[ -n "$PYRIGHT_ERROR" ]]; then
+        CONTEXT_MESSAGE="${CONTEXT_MESSAGE}Pyright Error:\n  $PYRIGHT_ERROR\n\n"
+    fi
+
+    # Remove trailing newlines
+    CONTEXT_MESSAGE=$(echo -e "$CONTEXT_MESSAGE" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+
     jq -n \
-        --argjson lintingIssues "$RUFF_DIAGNOSTICS_JSON" \
-        --argjson typeErrors "$PYRIGHT_DIAGNOSTICS" \
-        --arg formatError "${FORMAT_STDERR:-}" \
-        --arg pyrightError "${PYRIGHT_ERROR:-}" \
+        --arg reason "Python linting/type checking found issues: $REASON" \
+        --arg context "$CONTEXT_MESSAGE" \
         '{
+            decision: "block",
+            reason: $reason,
             hookSpecificOutput: {
-                additionalContext: {
-                    lintingIssues: $lintingIssues,
-                    typeErrors: $typeErrors,
-                    formatError: (if $formatError == "" then null else $formatError end),
-                    pyrightError: (if $pyrightError == "" then null else $pyrightError end)
-                }
+                hookEventName: "PostToolUse",
+                additionalContext: $context
             }
         }'
 fi
 
 # Always exit with 0 to allow the operation to proceed
-# Issues are reported to Claude via JSON output above
+# The "decision": "block" in JSON output above will prompt Claude about the issues
 exit 0
