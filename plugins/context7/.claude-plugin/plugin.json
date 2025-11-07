@@ -1,0 +1,18 @@
+{
+  "name": "context7",
+  "version": "1.0.0",
+  "description": "Access up-to-date library documentation and code examples via Context7 API",
+  "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+  "author": {
+    "name": "Cheolwan Park",
+    "url": "https://github.com/cheolwanpark"
+  },
+  "license": "MIT",
+  "keywords": [
+    "documentation",
+    "library",
+    "api",
+    "context7",
+    "mcp"
+  ]
+}

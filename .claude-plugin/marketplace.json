@@ -37,6 +37,28 @@
             },
             "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
             "license": "MIT"
+        },
+        {
+            "name": "typescript-lint",
+            "description": "Automatically lint, format, and type-check TypeScript files with ESLint and TypeScript compiler",
+            "source": "./plugins/typescript-lint",
+            "author": {
+                "name": "Cheolwan Park",
+                "url": "https://github.com/cheolwanpark"
+            },
+            "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+            "license": "MIT"
+        },
+        {
+            "name": "context7",
+            "description": "Access up-to-date library documentation and code examples via Context7 API",
+            "source": "./plugins/context7",
+            "author": {
+                "name": "Cheolwan Park",
+                "url": "https://github.com/cheolwanpark"
+            },
+            "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+            "license": "MIT"
         }
     ]
 }

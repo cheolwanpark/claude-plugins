@@ -1,9 +1,9 @@
 {
   "name": "typescript-lint",
   "version": "1.0.0",
-  "description": "TypeScript/JavaScript linting and formatting plugin using ESLint and Prettier",
-  "author": "Claude Code",
-  "repository": "https://github.com/anthropics/useful-claude-plugins",
+  "description": "Automatically lint, format, and type-check TypeScript files with ESLint and TypeScript compiler",
+  "author": "Cheolwan Park",
+  "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
   "license": "MIT",
   "keywords": [
     "typescript",
@@ -12,6 +12,7 @@
     "prettier",
     "linting",
     "formatting",
+    "type-checking",
     "react",
     "jsx"
   ],
