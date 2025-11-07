@@ -8,9 +8,6 @@ set -euo pipefail
 # File size limit (1MB)
 MAX_FILE_SIZE=1048576
 
-# Supported file extensions
-SUPPORTED_EXTS="\\.js$|\\.jsx$|\\.ts$|\\.tsx$|\\.mjs$|\\.cjs$"
-
 # Helper function to generate JSON responses safely using jq
 json_response() {
   local decision="$1"
@@ -60,11 +57,16 @@ if [[ ! -f "$FILE_PATH" ]]; then
 fi
 
 # Check file extension
-if ! echo "$FILE_PATH" | grep -qE "$SUPPORTED_EXTS"; then
-  EXT="${FILE_PATH##*.}"
-  json_response "allow" "File extension .$EXT is not supported for linting"
-  exit 0
-fi
+case "$FILE_PATH" in
+  *.js|*.jsx|*.ts|*.tsx|*.mjs|*.cjs|*.mts|*.cts)
+    # Supported file type, continue
+    ;;
+  *)
+    EXT="${FILE_PATH##*.}"
+    json_response "allow" "File extension .$EXT is not supported for linting"
+    exit 0
+    ;;
+esac
 
 # Check file size
 FILE_SIZE=$(wc -c < "$FILE_PATH" | tr -d ' ')
@@ -125,11 +127,7 @@ if [[ ${#MISSING_DEPS[@]} -gt 0 ]]; then
 fi
 
 # Format with Prettier
-PRETTIER_EXIT=0
-PRETTIER_OUTPUT=$(npx prettier --write "$FILE_PATH" 2>&1) || PRETTIER_EXIT=$?
-
-# Check if prettier failed
-if [[ $PRETTIER_EXIT -ne 0 ]]; then
+if ! PRETTIER_OUTPUT=$(npx prettier --write "$FILE_PATH" 2>&1); then
   # Extract first line of error
   ERROR_LINE=$(echo "$PRETTIER_OUTPUT" | head -1)
   json_response "allow" "Prettier formatting failed: $ERROR_LINE"

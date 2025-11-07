@@ -80,7 +80,7 @@ echo
 
 # Run Prettier
 echo "🎨 Running Prettier..."
-if npx prettier --write "**/*.{js,jsx,ts,tsx,mjs,cjs}" 2>&1; then
+if npx prettier --write "**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}" 2>&1; then
   echo "   ✓ Prettier completed"
 else
   echo "   ⚠️  Prettier encountered some issues"
@@ -90,7 +90,7 @@ echo
 # Run ESLint with --fix
 echo "🔍 Running ESLint..."
 ESLINT_EXIT_CODE=0
-npx eslint --fix "**/*.{js,jsx,ts,tsx,mjs,cjs}" 2>&1 || ESLINT_EXIT_CODE=$?
+npx eslint --fix "**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}" 2>&1 || ESLINT_EXIT_CODE=$?
 
 if [[ $ESLINT_EXIT_CODE -eq 0 ]]; then
   echo "   ✓ ESLint completed with no errors"
@@ -106,7 +106,7 @@ echo "## Summary"
 echo
 
 # Get ESLint report
-ESLINT_JSON=$(npx eslint --format json "**/*.{js,jsx,ts,tsx,mjs,cjs}" 2>/dev/null || true)
+ESLINT_JSON=$(npx eslint --format json "**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}" 2>/dev/null || true)
 
 # Validate JSON
 if ! echo "$ESLINT_JSON" | jq -e . >/dev/null 2>&1; then
