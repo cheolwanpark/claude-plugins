@@ -13,16 +13,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Source common library
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/python-lint-common.sh"
+
 # Get target directory from argument or use current directory
 TARGET_DIR="${1:-.}"
 
 # Resolve to absolute path
-if ! command -v realpath &> /dev/null; then
-    echo "Error: realpath command not found. Install coreutils: brew install coreutils"
-    exit 1
-fi
-
-TARGET_DIR=$(realpath "$TARGET_DIR" 2>/dev/null || echo "$TARGET_DIR")
+TARGET_DIR=$(_pyl_get_absolute_path "$TARGET_DIR")
 
 # Verify target directory exists
 if [[ ! -d "$TARGET_DIR" ]]; then
@@ -30,24 +29,9 @@ if [[ ! -d "$TARGET_DIR" ]]; then
     exit 1
 fi
 
-# Check if required tools are installed
-MISSING_TOOLS=()
-
-if ! command -v ruff &> /dev/null; then
-    MISSING_TOOLS+=("ruff")
-fi
-
-if ! command -v pyright &> /dev/null; then
-    MISSING_TOOLS+=("pyright")
-fi
-
-if ! command -v jq &> /dev/null; then
-    MISSING_TOOLS+=("jq")
-fi
-
-# If any tools are missing, report and exit
-if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
-    TOOLS_LIST=$(IFS=", "; echo "${MISSING_TOOLS[*]}")
+# Check if required tools are installed (realpath is optional)
+if ! _pyl_check_required_tools ruff pyright jq; then
+    TOOLS_LIST=$(IFS=", "; echo "${_PYL_MISSING_TOOLS[*]}")
     echo "# Python Lint Report"
     echo ""
     echo "## Error: Missing Required Tools"
@@ -58,119 +42,58 @@ if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
     echo ""
     echo "**macOS:**"
     echo '```bash'
-    echo "brew install ${MISSING_TOOLS[*]}"
+    echo "brew install ${_PYL_MISSING_TOOLS[*]}"
     echo '```'
     echo ""
     echo "**Linux:**"
     echo '```bash'
-    echo "pip install ${MISSING_TOOLS[*]}"
+    echo "pip install ${_PYL_MISSING_TOOLS[*]}"
     echo '```'
     exit 1
 fi
 
-# Find project root by searching upward
-# Priority: .git > pyproject.toml > pyrightconfig.json
-GIT_ROOT=""
-TOML_ROOT=""
-PYRIGHT_ROOT=""
-CURRENT_DIR="$TARGET_DIR"
-SEARCH_DEPTH=0
-MAX_DEPTH=10
-
-while [[ "$CURRENT_DIR" != "/" ]] && [[ $SEARCH_DEPTH -lt $MAX_DEPTH ]]; do
-    # Collect candidates (keep first occurrence of each)
-    if [[ -d "$CURRENT_DIR/.git" ]] && [[ -z "$GIT_ROOT" ]]; then
-        GIT_ROOT="$CURRENT_DIR"
-    fi
-    if [[ -f "$CURRENT_DIR/pyproject.toml" ]] && [[ -z "$TOML_ROOT" ]]; then
-        TOML_ROOT="$CURRENT_DIR"
-    fi
-    if [[ -f "$CURRENT_DIR/pyrightconfig.json" ]] && [[ -z "$PYRIGHT_ROOT" ]]; then
-        PYRIGHT_ROOT="$CURRENT_DIR"
-    fi
-    CURRENT_DIR=$(dirname "$CURRENT_DIR")
-    ((SEARCH_DEPTH++))
-done
-
-# Apply priority: .git > pyproject.toml > pyrightconfig.json > target directory
-PROJECT_ROOT="${GIT_ROOT:-${TOML_ROOT:-${PYRIGHT_ROOT:-$TARGET_DIR}}}"
+# Find project root
+PROJECT_ROOT=$(_pyl_find_project_root "$TARGET_DIR")
 
 # Check for virtual environment and activate if found
-VENV_ACTIVATED=false
-for VENV_PATH in "$PROJECT_ROOT/.venv" "$PROJECT_ROOT/venv"; do
-    if [[ -f "$VENV_PATH/bin/activate" ]]; then
-        # shellcheck disable=SC1091
-        source "$VENV_PATH/bin/activate" 2>/dev/null && VENV_ACTIVATED=true || true
-        break
-    fi
-done
+_pyl_activate_venv "$PROJECT_ROOT"
 
 # Change to project root for proper config detection
 cd "$PROJECT_ROOT" || exit 1
 
 # Calculate relative path from project root to target
-RELATIVE_TARGET=$(realpath --relative-to="$PROJECT_ROOT" "$TARGET_DIR" 2>/dev/null || echo "$TARGET_DIR")
+RELATIVE_TARGET=$(_pyl_get_relative_path "$TARGET_DIR" "$PROJECT_ROOT")
 
 # Initialize variables
 RUFF_FAILED=false
 PYRIGHT_FAILED=false
 
 # Create temp files for outputs
-RUFF_OUTPUT_FILE=$(mktemp)
 RUFF_STDERR_FILE=$(mktemp)
-PYRIGHT_OUTPUT_FILE=$(mktemp)
 PYRIGHT_STDERR_FILE=$(mktemp)
 
 # Cleanup temp files on exit
-trap 'rm -f "$RUFF_OUTPUT_FILE" "$RUFF_STDERR_FILE" "$PYRIGHT_OUTPUT_FILE" "$PYRIGHT_STDERR_FILE"' EXIT
+trap 'rm -f "$RUFF_STDERR_FILE" "$PYRIGHT_STDERR_FILE"' EXIT
 
-# Determine which Ruff config to use
-# If user has a project-level config, respect it; otherwise use plugin's default
-HAS_RUFF_CONFIG=false
-
-# Check for dedicated ruff config files
-if [[ -f "$PROJECT_ROOT/ruff.toml" ]] || [[ -f "$PROJECT_ROOT/.ruff.toml" ]]; then
-    HAS_RUFF_CONFIG=true
-# Check if pyproject.toml contains [tool.ruff] section
-elif [[ -f "$PROJECT_ROOT/pyproject.toml" ]]; then
-    if grep -q '^\[tool\.ruff' "$PROJECT_ROOT/pyproject.toml" 2>/dev/null; then
-        HAS_RUFF_CONFIG=true
-    fi
-fi
-
-# Build config args as array to handle paths with spaces
-RUFF_CONFIG_ARGS=()
-if [[ "$HAS_RUFF_CONFIG" == "false" ]]; then
-    # Use plugin's default config for comprehensive whitespace checking
-    RUFF_CONFIG_ARGS=(--config "$PLUGIN_ROOT/ruff.toml")
-fi
+# Build ruff config arguments
+_pyl_build_ruff_config_args "$PROJECT_ROOT" "$PLUGIN_ROOT"
 
 # Run ruff with --fix to auto-correct issues first
 echo "Running ruff auto-fix..." >&2
-ruff check "$RELATIVE_TARGET" ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --fix --exit-zero > /dev/null 2>&1
+ruff check "$RELATIVE_TARGET" ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} --fix --exit-zero > /dev/null 2>&1
 
-# Run ruff check again to capture remaining unfixable issues
-if ruff check "$RELATIVE_TARGET" ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --output-format=json --exit-zero > "$RUFF_OUTPUT_FILE" 2> "$RUFF_STDERR_FILE"; then
-    :
-else
-    RUFF_FAILED=true
-fi
+# Run ruff check again to capture remaining unfixable issues (use command substitution instead of temp file)
+RUFF_JSON=$(ruff check "$RELATIVE_TARGET" ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} --output-format=json --exit-zero 2>"$RUFF_STDERR_FILE") || RUFF_FAILED=true
 
-# Run pyright
-if pyright "$RELATIVE_TARGET" --outputjson > "$PYRIGHT_OUTPUT_FILE" 2> "$PYRIGHT_STDERR_FILE"; then
-    :
-else
-    PYRIGHT_FAILED=true
-fi
-
-# Parse ruff output
-RUFF_JSON=$(cat "$RUFF_OUTPUT_FILE")
+# Validate ruff JSON
 if ! echo "$RUFF_JSON" | jq -e . >/dev/null 2>&1; then
     RUFF_JSON="[]"
 fi
 
-# Parse pyright output
-PYRIGHT_JSON=$(cat "$PYRIGHT_OUTPUT_FILE")
+# Run pyright (use command substitution for stdout, temp file for stderr)
+PYRIGHT_JSON=$(pyright "$RELATIVE_TARGET" --outputjson 2>"$PYRIGHT_STDERR_FILE") || PYRIGHT_FAILED=true
+
+# Validate pyright JSON
 if ! echo "$PYRIGHT_JSON" | jq -e . >/dev/null 2>&1; then
     PYRIGHT_JSON='{"generalDiagnostics": [], "summary": {"errorCount": 0, "warningCount": 0}}'
 fi
@@ -196,7 +119,7 @@ echo "# Python Lint Report"
 echo ""
 echo "**Project:** \`$PROJECT_ROOT\`"
 echo "**Scanned:** \`$RELATIVE_TARGET\`"
-if [[ "$VENV_ACTIVATED" == "true" ]]; then
+if [[ "$_PYL_VENV_ACTIVATED" == "true" ]]; then
     echo "**Virtual Environment:** Active"
 fi
 echo ""
