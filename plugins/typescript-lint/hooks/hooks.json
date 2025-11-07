@@ -1,0 +1,11 @@
+{
+  "hooks": [
+    {
+      "name": "typescript-lint",
+      "event": "PostToolUse",
+      "matcher": "Edit|Write",
+      "executable": "${CLAUDE_PLUGIN_ROOT}/hooks/typescript-lint.sh",
+      "timeout": 30000
+    }
+  ]
+}

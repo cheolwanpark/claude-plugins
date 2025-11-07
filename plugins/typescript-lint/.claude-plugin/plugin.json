@@ -1,0 +1,19 @@
+{
+  "name": "typescript-lint",
+  "version": "1.0.0",
+  "description": "TypeScript/JavaScript linting and formatting plugin using ESLint and Prettier",
+  "author": "Claude Code",
+  "repository": "https://github.com/anthropics/useful-claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "typescript",
+    "javascript",
+    "eslint",
+    "prettier",
+    "linting",
+    "formatting",
+    "react",
+    "jsx"
+  ],
+  "hooks": "./hooks/hooks.json"
+}
