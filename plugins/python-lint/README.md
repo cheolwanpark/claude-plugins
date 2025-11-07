@@ -96,6 +96,67 @@ The plugin uses a PostToolUse hook that triggers after Claude uses the `Edit` or
 - Claude writes `import os; x=1+2` → Hook transforms to `x = 1 + 2` (unused import removed, spacing fixed)
 - Claude writes `def foo(x: int) -> str: return x` → Hook reports type error: "Expression of type 'int' cannot be assigned to return type 'str'"
 
+## Project-Wide Linting
+
+In addition to automatic per-file linting, you can scan your entire project using the `/lint-project` slash command.
+
+### Usage
+
+```
+/lint-project          # Scan current directory
+/lint-project src/     # Scan specific directory
+```
+
+### Features
+
+- **Read-only**: Does not auto-fix or modify files
+- **Comprehensive**: Scans all Python files in the target directory
+- **Smart output**: Shows all linting issues, type errors, and up to 10 type warnings
+- **Virtual environment support**: Automatically detects and uses `.venv` or `venv`
+- **Timeout protection**: 60-second timeout per tool with partial results
+- **Detailed report**: Markdown-formatted summary with file locations and issue counts
+
+### When to Use
+
+- **Per-file auto-linting** (automatic on Edit/Write):
+  - Fast, focused feedback on files you're editing
+  - Auto-fixes common issues
+  - Best for active development
+
+- **Project-wide scanning** (`/lint-project`):
+  - Comprehensive codebase review
+  - Read-only analysis (no modifications)
+  - Best before commits, after refactoring, or when reviewing code quality
+
+### Example Output
+
+```markdown
+# Python Lint Report
+
+**Project:** `/Users/you/project`
+**Scanned:** `src/`
+
+## Summary
+- **Linting issues:** 5
+- **Type errors:** 12
+- **Type warnings:** 3
+- **Files with issues:** 8
+
+## Errors
+
+### Linting Issues (5)
+- `src/main.py:10:5` **F821** - Undefined name `foo`
+...
+
+### Type Errors (12)
+- `src/utils.py:15:10` - Cannot assign "int" to "str"
+...
+
+## Warnings (showing 10 of 15 type warnings)
+- `src/test.py:5:1` - Missing return type annotation
+...
+```
+
 ## Configuration
 
 ### Ruff Configuration
