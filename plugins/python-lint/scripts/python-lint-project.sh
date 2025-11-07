@@ -109,9 +109,7 @@ RELATIVE_TARGET=$(realpath --relative-to="$PROJECT_ROOT" "$TARGET_DIR" 2>/dev/nu
 
 # Initialize variables
 RUFF_FAILED=false
-RUFF_TIMED_OUT=false
 PYRIGHT_FAILED=false
-PYRIGHT_TIMED_OUT=false
 
 # Create temp files for outputs
 RUFF_OUTPUT_FILE=$(mktemp)
@@ -122,28 +120,18 @@ PYRIGHT_STDERR_FILE=$(mktemp)
 # Cleanup temp files on exit
 trap 'rm -f "$RUFF_OUTPUT_FILE" "$RUFF_STDERR_FILE" "$PYRIGHT_OUTPUT_FILE" "$PYRIGHT_STDERR_FILE"' EXIT
 
-# Run ruff with timeout
-if timeout 60s ruff check "$RELATIVE_TARGET" --output-format=json --exit-zero > "$RUFF_OUTPUT_FILE" 2> "$RUFF_STDERR_FILE"; then
+# Run ruff
+if ruff check "$RELATIVE_TARGET" --output-format=json --exit-zero > "$RUFF_OUTPUT_FILE" 2> "$RUFF_STDERR_FILE"; then
     :
 else
-    EXIT_CODE=$?
-    if [[ $EXIT_CODE -eq 124 ]]; then
-        RUFF_TIMED_OUT=true
-    else
-        RUFF_FAILED=true
-    fi
+    RUFF_FAILED=true
 fi
 
-# Run pyright with timeout
-if timeout 60s pyright "$RELATIVE_TARGET" --outputjson > "$PYRIGHT_OUTPUT_FILE" 2> "$PYRIGHT_STDERR_FILE"; then
+# Run pyright
+if pyright "$RELATIVE_TARGET" --outputjson > "$PYRIGHT_OUTPUT_FILE" 2> "$PYRIGHT_STDERR_FILE"; then
     :
 else
-    EXIT_CODE=$?
-    if [[ $EXIT_CODE -eq 124 ]]; then
-        PYRIGHT_TIMED_OUT=true
-    else
-        PYRIGHT_FAILED=true
-    fi
+    PYRIGHT_FAILED=true
 fi
 
 # Parse ruff output
@@ -172,7 +160,7 @@ read -r PYRIGHT_ERRORS PYRIGHT_WARNINGS PYRIGHT_FILES_LIST < <(echo "$PYRIGHT_JS
 ' 2>/dev/null || echo "0 0 ")
 
 # Calculate total unique files (union of ruff and pyright files)
-TOTAL_FILES=$(echo "$RUFF_FILES_LIST $PYRIGHT_FILES_LIST" | tr ' ' '\n' | sort -u | grep -c . || echo "0")
+TOTAL_FILES=$(echo "$RUFF_FILES_LIST $PYRIGHT_FILES_LIST" | tr ' ' '\n' | sort -u | grep -c . || true)
 
 # Start markdown output
 echo "# Python Lint Report"
@@ -192,19 +180,6 @@ echo "- **Type errors:** $PYRIGHT_ERRORS"
 echo "- **Type warnings:** $PYRIGHT_WARNINGS"
 echo "- **Files with issues:** $TOTAL_FILES"
 echo ""
-
-# Show timeout warnings if any
-if [[ "$RUFF_TIMED_OUT" == "true" ]] || [[ "$PYRIGHT_TIMED_OUT" == "true" ]]; then
-    echo "### ⚠️ Warnings"
-    echo ""
-    if [[ "$RUFF_TIMED_OUT" == "true" ]]; then
-        echo "- **Ruff analysis timed out** (60s limit) - showing partial results"
-    fi
-    if [[ "$PYRIGHT_TIMED_OUT" == "true" ]]; then
-        echo "- **Pyright analysis timed out** (60s limit) - showing partial results"
-    fi
-    echo ""
-fi
 
 # Show errors if any
 if [[ $RUFF_ERRORS -gt 0 ]] || [[ $PYRIGHT_ERRORS -gt 0 ]]; then
@@ -253,23 +228,26 @@ if [[ $PYRIGHT_WARNINGS -gt 0 ]]; then
     echo ""
 fi
 
-# Show tool errors if any
-if [[ "$RUFF_FAILED" == "true" ]] || [[ "$PYRIGHT_FAILED" == "true" ]]; then
+# Show tool errors if any (only if there's actual stderr content)
+RUFF_STDERR_CONTENT=$(cat "$RUFF_STDERR_FILE")
+PYRIGHT_STDERR_CONTENT=$(cat "$PYRIGHT_STDERR_FILE")
+
+if [[ "$RUFF_FAILED" == "true" && -n "$RUFF_STDERR_CONTENT" ]] || [[ "$PYRIGHT_FAILED" == "true" && -n "$PYRIGHT_STDERR_CONTENT" ]]; then
     echo "## Tool Errors"
     echo ""
 
-    if [[ "$RUFF_FAILED" == "true" ]]; then
+    if [[ "$RUFF_FAILED" == "true" && -n "$RUFF_STDERR_CONTENT" ]]; then
         echo "### Ruff Error"
         echo '```'
-        cat "$RUFF_STDERR_FILE"
+        echo "$RUFF_STDERR_CONTENT"
         echo '```'
         echo ""
     fi
 
-    if [[ "$PYRIGHT_FAILED" == "true" ]]; then
+    if [[ "$PYRIGHT_FAILED" == "true" && -n "$PYRIGHT_STDERR_CONTENT" ]]; then
         echo "### Pyright Error"
         echo '```'
-        cat "$PYRIGHT_STDERR_FILE"
+        echo "$PYRIGHT_STDERR_CONTENT"
         echo '```'
         echo ""
     fi
