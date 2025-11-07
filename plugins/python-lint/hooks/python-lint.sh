@@ -67,7 +67,7 @@ FORMAT_STDERR=""
 ruff check --fix ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} --exit-zero "$FILE_PATH" > /dev/null 2>&1
 
 # Run ruff format with same config and capture stderr
-FORMAT_STDERR=$(ruff format ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} "$FILE_PATH" 2>&1 1>/dev/null) || FORMAT_FAILED="true"
+FORMAT_STDERR=$(ruff format ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} "$FILE_PATH" 2>&1 >/dev/null) || FORMAT_FAILED="true"
 
 # Run final ruff check to capture any remaining unfixable issues in JSON format
 RUFF_DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" ${_PYL_RUFF_CONFIG_ARGS[@]+"${_PYL_RUFF_CONFIG_ARGS[@]}"} --output-format=json --exit-zero 2>/dev/null)
@@ -226,8 +226,8 @@ if [[ "$HAS_RUFF_ISSUES" == "true" ]] || [[ "$HAS_PYRIGHT_ISSUES" == "true" ]] |
         CONTEXT_MESSAGE="${CONTEXT_MESSAGE}Pyright Error:\n  $PYRIGHT_ERROR\n\n"
     fi
 
-    # Remove trailing newlines
-    CONTEXT_MESSAGE=$(echo -e "$CONTEXT_MESSAGE" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+    # Remove trailing newlines using printf for proper newline handling
+    CONTEXT_MESSAGE=$(printf '%b' "$CONTEXT_MESSAGE" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
 
     _pyl_json_response "block" "Python linting/type checking found issues: $REASON" "PostToolUse" "$CONTEXT_MESSAGE"
 fi

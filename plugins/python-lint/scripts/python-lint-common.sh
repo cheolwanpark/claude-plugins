@@ -182,7 +182,7 @@ _pyl_detect_ruff_config() {
 
     # Check if pyproject.toml exists and contains [tool.ruff] section
     if [[ -f "$project_root/pyproject.toml" ]]; then
-        if grep -q '^\[tool\.ruff' "$project_root/pyproject.toml" 2>/dev/null; then
+        if grep -Eq '^\[tool\.ruff(\]|\.)' "$project_root/pyproject.toml" 2>/dev/null; then
             return 0
         fi
     fi
@@ -251,7 +251,7 @@ _pyl_get_relative_path() {
 
     # Fallback to python3 (safer than bash string manipulation)
     if command -v python3 &>/dev/null; then
-        python3 -c "import os, sys; print(os.path.relpath('$target', '$base'))" 2>/dev/null && return 0
+        python3 -c 'import os, sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$target" "$base" 2>/dev/null && return 0
     fi
 
     # Last resort: simple string substitution (only works if target starts with base/)
@@ -278,7 +278,7 @@ _pyl_get_absolute_path() {
 
     # Fallback to python3
     if command -v python3 &>/dev/null; then
-        python3 -c "import os, sys; print(os.path.realpath('$path'))" 2>/dev/null && return 0
+        python3 -c 'import os; import sys; print(os.path.realpath(sys.argv[1]))' "$path" 2>/dev/null && return 0
     fi
 
     # Fallback: cd and pwd (works for files and directories)

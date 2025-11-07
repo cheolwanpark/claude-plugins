@@ -156,7 +156,7 @@ if [[ $RUFF_ERRORS -gt 0 ]] || [[ $PYRIGHT_ERRORS -gt 0 ]]; then
         echo "$PYRIGHT_JSON" | jq -r '
             [.generalDiagnostics[] | select(.severity == "error")]
             | .[]
-            | "- `\(.file):\(.range.start.line):\(.range.start.character)` - \(.message)"
+            | "- `\(.file):\(.range.start.line + 1):\(.range.start.character + 1)` - \(.message)"
         ' 2>/dev/null || echo "- _(Error parsing pyright output)_"
         echo ""
     fi
@@ -175,7 +175,7 @@ if [[ $PYRIGHT_WARNINGS -gt 0 ]]; then
         [.generalDiagnostics[] | select(.severity == "warning")]
         | .[0:10]
         | .[]
-        | "- `\(.file):\(.range.start.line):\(.range.start.character)` - \(.message)"
+        | "- `\(.file):\(.range.start.line + 1):\(.range.start.character + 1)` - \(.message)"
     ' 2>/dev/null || echo "- _(Error parsing pyright output)_"
     echo ""
 fi

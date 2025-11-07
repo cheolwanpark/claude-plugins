@@ -1,0 +1,10 @@
+[project]
+name = "python-lint-test"
+version = "0.1.0"
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W"]
+
+[tool.pyright]
+typeCheckingMode = "basic"
