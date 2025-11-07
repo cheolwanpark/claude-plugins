@@ -12,6 +12,10 @@
 
 set -euo pipefail
 
+# Get the plugin root directory (parent of hooks directory)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
+
 # Read JSON input from stdin
 INPUT=$(cat)
 
@@ -67,39 +71,60 @@ fi
 FORMAT_FAILED=""
 FORMAT_STDERR=""
 
-# Run ruff check --fix and format
-# Suppress output since we'll get diagnostics at the end
-ruff check --fix --exit-zero "$FILE_PATH" > /dev/null 2>&1
-
-# Run ruff format and capture stderr (note: 2>&1 must come before >/dev/null)
-FORMAT_STDERR=$(ruff format "$FILE_PATH" 2>&1 1>/dev/null) || FORMAT_FAILED="true"
-
-# Run final ruff check to capture any remaining unfixable issues in JSON format
-RUFF_DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" --output-format=json --exit-zero 2>/dev/null)
-
-# Validate that we got valid JSON from ruff
-if ! echo "$RUFF_DIAGNOSTICS_JSON" | jq -e . >/dev/null 2>&1; then
-    RUFF_DIAGNOSTICS_JSON="[]"
-fi
-
-# Find project root for pyright (look for pyproject.toml or pyrightconfig.json)
+# Find project root (look for config files)
 PROJECT_ROOT=""
 CURRENT_DIR=$(dirname "$(realpath "$FILE_PATH")")
 
 while [[ "$CURRENT_DIR" != "/" ]]; do
-    if [[ -f "$CURRENT_DIR/pyproject.toml" ]] || [[ -f "$CURRENT_DIR/pyrightconfig.json" ]]; then
+    if [[ -f "$CURRENT_DIR/pyproject.toml" ]] || [[ -f "$CURRENT_DIR/pyrightconfig.json" ]] || [[ -f "$CURRENT_DIR/ruff.toml" ]] || [[ -f "$CURRENT_DIR/.ruff.toml" ]]; then
         PROJECT_ROOT="$CURRENT_DIR"
         break
     fi
     CURRENT_DIR=$(dirname "$CURRENT_DIR")
 done
 
-# If no project root found, use the file's directory (use realpath for consistency)
+# If no project root found, use the file's directory
 if [[ -z "$PROJECT_ROOT" ]]; then
     PROJECT_ROOT=$(dirname "$(realpath "$FILE_PATH")")
 fi
 
-# Get relative path from project root
+# Determine which Ruff config to use
+# If user has a project-level config, respect it; otherwise use plugin's default
+HAS_RUFF_CONFIG=false
+
+# Check for dedicated ruff config files
+if [[ -f "$PROJECT_ROOT/ruff.toml" ]] || [[ -f "$PROJECT_ROOT/.ruff.toml" ]]; then
+    HAS_RUFF_CONFIG=true
+# Check if pyproject.toml contains [tool.ruff] section
+elif [[ -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+    if grep -q '^\[tool\.ruff' "$PROJECT_ROOT/pyproject.toml" 2>/dev/null; then
+        HAS_RUFF_CONFIG=true
+    fi
+fi
+
+# Build config args as array to handle paths with spaces
+RUFF_CONFIG_ARGS=()
+if [[ "$HAS_RUFF_CONFIG" == "false" ]]; then
+    # Use plugin's default config for comprehensive whitespace checking
+    RUFF_CONFIG_ARGS=(--config "$PLUGIN_ROOT/ruff.toml")
+fi
+
+# Run ruff check --fix and format
+# Suppress output since we'll get diagnostics at the end
+ruff check --fix "${RUFF_CONFIG_ARGS[@]}" --exit-zero "$FILE_PATH" > /dev/null 2>&1
+
+# Run ruff format with same config and capture stderr (note: 2>&1 must come before >/dev/null)
+FORMAT_STDERR=$(ruff format "${RUFF_CONFIG_ARGS[@]}" "$FILE_PATH" 2>&1 1>/dev/null) || FORMAT_FAILED="true"
+
+# Run final ruff check to capture any remaining unfixable issues in JSON format
+RUFF_DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" "${RUFF_CONFIG_ARGS[@]}" --output-format=json --exit-zero 2>/dev/null)
+
+# Validate that we got valid JSON from ruff
+if ! echo "$RUFF_DIAGNOSTICS_JSON" | jq -e . >/dev/null 2>&1; then
+    RUFF_DIAGNOSTICS_JSON="[]"
+fi
+
+# Get relative path from project root (PROJECT_ROOT was determined earlier)
 RELATIVE_FILE_PATH=$(realpath --relative-to="$PROJECT_ROOT" "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
 
 # Run pyright from project root

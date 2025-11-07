@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+# Get the plugin root directory (parent of scripts directory)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
+
 # Get target directory from argument or use current directory
 TARGET_DIR="${1:-.}"
 
@@ -120,8 +124,33 @@ PYRIGHT_STDERR_FILE=$(mktemp)
 # Cleanup temp files on exit
 trap 'rm -f "$RUFF_OUTPUT_FILE" "$RUFF_STDERR_FILE" "$PYRIGHT_OUTPUT_FILE" "$PYRIGHT_STDERR_FILE"' EXIT
 
-# Run ruff
-if ruff check "$RELATIVE_TARGET" --output-format=json --exit-zero > "$RUFF_OUTPUT_FILE" 2> "$RUFF_STDERR_FILE"; then
+# Determine which Ruff config to use
+# If user has a project-level config, respect it; otherwise use plugin's default
+HAS_RUFF_CONFIG=false
+
+# Check for dedicated ruff config files
+if [[ -f "$PROJECT_ROOT/ruff.toml" ]] || [[ -f "$PROJECT_ROOT/.ruff.toml" ]]; then
+    HAS_RUFF_CONFIG=true
+# Check if pyproject.toml contains [tool.ruff] section
+elif [[ -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+    if grep -q '^\[tool\.ruff' "$PROJECT_ROOT/pyproject.toml" 2>/dev/null; then
+        HAS_RUFF_CONFIG=true
+    fi
+fi
+
+# Build config args as array to handle paths with spaces
+RUFF_CONFIG_ARGS=()
+if [[ "$HAS_RUFF_CONFIG" == "false" ]]; then
+    # Use plugin's default config for comprehensive whitespace checking
+    RUFF_CONFIG_ARGS=(--config "$PLUGIN_ROOT/ruff.toml")
+fi
+
+# Run ruff with --fix to auto-correct issues first
+echo "Running ruff auto-fix..." >&2
+ruff check "$RELATIVE_TARGET" "${RUFF_CONFIG_ARGS[@]}" --fix --exit-zero > /dev/null 2>&1
+
+# Run ruff check again to capture remaining unfixable issues
+if ruff check "$RELATIVE_TARGET" "${RUFF_CONFIG_ARGS[@]}" --output-format=json --exit-zero > "$RUFF_OUTPUT_FILE" 2> "$RUFF_STDERR_FILE"; then
     :
 else
     RUFF_FAILED=true
