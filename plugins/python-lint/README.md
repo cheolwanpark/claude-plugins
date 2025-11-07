@@ -109,7 +109,8 @@ In addition to automatic per-file linting, you can scan your entire project usin
 
 ### Features
 
-- **Read-only**: Does not auto-fix or modify files
+- **Auto-fixes issues**: Automatically fixes all auto-fixable linting violations (spacing, imports, etc.)
+- **Reports remaining issues**: Shows unfixable linting issues and type errors after auto-fixing
 - **Comprehensive**: Scans all Python files in the target directory
 - **Smart output**: Shows all linting issues, type errors, and up to 10 type warnings
 - **Virtual environment support**: Automatically detects and uses `.venv` or `venv`
@@ -123,10 +124,27 @@ In addition to automatic per-file linting, you can scan your entire project usin
   - Auto-fixes common issues
   - Best for active development
 
-- **Project-wide scanning** (`/lint-project`):
-  - Comprehensive codebase review
-  - Read-only analysis (no modifications)
+- **Project-wide linting** (`/lint-project`):
+  - Comprehensive codebase review with auto-fixes
+  - Fixes all auto-fixable issues across entire project
+  - Reports remaining violations and type errors
   - Best before commits, after refactoring, or when reviewing code quality
+
+### What Gets Auto-Fixed vs Reported
+
+**Auto-fixed (silently corrected):**
+- Missing whitespace around operators (`x=1` → `x = 1`)
+- Missing whitespace after commas (`def f(x,y)` → `def f(x, y)`)
+- Unused imports automatically removed
+- Missing blank lines between functions/classes
+- Trailing whitespace
+- Code formatting (via `ruff format`)
+
+**Reported (requires manual intervention):**
+- Undefined variables (`F821`)
+- Unused local variables (`F841`)
+- Type errors from pyright
+- Other unfixable linting issues
 
 ### Example Output
 

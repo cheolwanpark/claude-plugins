@@ -1,0 +1,34 @@
+# Default Ruff Configuration for python-lint Plugin
+#
+# This configuration enables comprehensive PEP 8 whitespace checking
+# while remaining practical for most projects.
+#
+# Projects can override this by creating their own ruff.toml or
+# pyproject.toml in their project root.
+
+# Set reasonable line length (Black's default)
+line-length = 88
+
+[lint]
+# Enable preview mode to access comprehensive whitespace rules
+preview = true
+
+# Targeted whitespace and style rules
+select = [
+    "F",    # Pyflakes (errors, unused imports, undefined names)
+    "E2",   # Whitespace errors (E201-E275: spaces around operators, commas, brackets, etc.)
+    "E3",   # Blank line issues (E301-E306: expected blank lines)
+    "W2",   # Whitespace warnings (W291-W292: trailing whitespace)
+    "W3",   # Whitespace warnings (W391: blank line at end of file)
+]
+
+ignore = [
+    "E501",  # Line too long - often conflicts with formatters, projects should set their own line-length
+]
+
+# Allow automatic fixes for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
