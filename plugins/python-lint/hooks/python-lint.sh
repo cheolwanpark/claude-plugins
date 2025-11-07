@@ -111,13 +111,13 @@ fi
 
 # Run ruff check --fix and format
 # Suppress output since we'll get diagnostics at the end
-ruff check --fix "${RUFF_CONFIG_ARGS[@]}" --exit-zero "$FILE_PATH" > /dev/null 2>&1
+ruff check --fix ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --exit-zero "$FILE_PATH" > /dev/null 2>&1
 
 # Run ruff format with same config and capture stderr (note: 2>&1 must come before >/dev/null)
-FORMAT_STDERR=$(ruff format "${RUFF_CONFIG_ARGS[@]}" "$FILE_PATH" 2>&1 1>/dev/null) || FORMAT_FAILED="true"
+FORMAT_STDERR=$(ruff format ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} "$FILE_PATH" 2>&1 1>/dev/null) || FORMAT_FAILED="true"
 
 # Run final ruff check to capture any remaining unfixable issues in JSON format
-RUFF_DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" "${RUFF_CONFIG_ARGS[@]}" --output-format=json --exit-zero 2>/dev/null)
+RUFF_DIAGNOSTICS_JSON=$(ruff check "$FILE_PATH" ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --output-format=json --exit-zero 2>/dev/null)
 
 # Validate that we got valid JSON from ruff
 if ! echo "$RUFF_DIAGNOSTICS_JSON" | jq -e . >/dev/null 2>&1; then

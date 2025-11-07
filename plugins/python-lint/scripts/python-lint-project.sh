@@ -147,10 +147,10 @@ fi
 
 # Run ruff with --fix to auto-correct issues first
 echo "Running ruff auto-fix..." >&2
-ruff check "$RELATIVE_TARGET" "${RUFF_CONFIG_ARGS[@]}" --fix --exit-zero > /dev/null 2>&1
+ruff check "$RELATIVE_TARGET" ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --fix --exit-zero > /dev/null 2>&1
 
 # Run ruff check again to capture remaining unfixable issues
-if ruff check "$RELATIVE_TARGET" "${RUFF_CONFIG_ARGS[@]}" --output-format=json --exit-zero > "$RUFF_OUTPUT_FILE" 2> "$RUFF_STDERR_FILE"; then
+if ruff check "$RELATIVE_TARGET" ${RUFF_CONFIG_ARGS[@]+"${RUFF_CONFIG_ARGS[@]}"} --output-format=json --exit-zero > "$RUFF_OUTPUT_FILE" 2> "$RUFF_STDERR_FILE"; then
     :
 else
     RUFF_FAILED=true
