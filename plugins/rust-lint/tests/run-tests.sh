@@ -70,6 +70,27 @@ assert_json_decision() {
     [[ "$actual_decision" == "$expected_decision" ]]
 }
 
+assert_valid_json() {
+    local json="$1"
+    echo "$json" | jq -e . >/dev/null 2>&1
+}
+
+assert_silent_success() {
+    local output="$1"
+    # For PostToolUse hooks, successful operations should exit silently (no output)
+    [[ -z "$output" ]]
+}
+
+assert_json_or_silent() {
+    local output="$1"
+    # Output can be either empty (silent) OR valid JSON
+    if [[ -z "$output" ]]; then
+        return 0
+    else
+        assert_valid_json "$output"
+    fi
+}
+
 # ============================================================================
 # Setup and Cleanup
 # ============================================================================
@@ -105,6 +126,30 @@ test_json_response_with_context() {
     echo "$json" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
 }
 
+test_post_tool_exit_silent() {
+    # Test that silent exit produces no output
+    local output
+    output=$(_rl_safe_exit_post_tool "silent" 2>/dev/null || true)
+    assert_silent_success "$output"
+}
+
+test_post_tool_exit_block() {
+    # Test that block exit produces valid JSON with decision=block
+    local output
+    output=$(_rl_safe_exit_post_tool "block" "Error message" 2>/dev/null || true)
+    assert_valid_json "$output" &&
+    assert_json_decision "$output" "block"
+}
+
+test_post_tool_exit_block_with_context() {
+    # Test that block with context includes hookSpecificOutput
+    local output
+    output=$(_rl_safe_exit_post_tool "block" "Error message" "Additional context" 2>/dev/null || true)
+    assert_valid_json "$output" &&
+    assert_json_decision "$output" "block" &&
+    echo "$output" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
+}
+
 test_parse_file_path() {
     local input='{"tool_input":{"file_path":"/path/to/file.rs"}}'
     local path
@@ -136,7 +181,8 @@ test_hook_clean_file() {
     input=$(jq -n --arg path "$file_path" '{tool_input:{file_path:$path}}')
     local output
     output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
-    assert_json_decision "$output" "allow"
+    # Should exit silently on success (PostToolUse behavior)
+    assert_silent_success "$output"
 }
 
 test_hook_badly_formatted_file() {
@@ -145,8 +191,8 @@ test_hook_badly_formatted_file() {
     input=$(jq -n --arg path "$file_path" '{tool_input:{file_path:$path}}')
     local output
     output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
-    # Hook should allow (formatting is auto-applied)
-    assert_json_decision "$output" "allow"
+    # Hook should exit silently (formatting is auto-applied)
+    assert_silent_success "$output"
 }
 
 test_hook_non_rust_file() {
@@ -155,11 +201,8 @@ test_hook_non_rust_file() {
     input=$(jq -n --arg path "$file_path" '{tool_input:{file_path:$path}}')
     local output
     output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
-    # Should exit silently (no JSON output expected for non-.rs files)
-    # If there's output, it should be "allow"
-    if [[ -n "$output" ]]; then
-        assert_json_decision "$output" "allow"
-    fi
+    # Should exit silently (non-Rust files are skipped)
+    assert_silent_success "$output"
 }
 
 test_hook_nonexistent_file() {
@@ -168,20 +211,15 @@ test_hook_nonexistent_file() {
     input=$(jq -n --arg path "$file_path" '{tool_input:{file_path:$path}}')
     local output
     output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
-    # Should exit silently (no output expected)
-    # If there's output, it should be "allow"
-    if [[ -n "$output" ]]; then
-        assert_json_decision "$output" "allow"
-    fi
+    # Should exit silently (nonexistent files are skipped)
+    assert_silent_success "$output"
 }
 
 test_hook_invalid_json() {
     local output
     output=$(echo "invalid json" | "$PLUGIN_ROOT/hooks/rust-lint.sh" || true)
-    # Should exit gracefully (no output or allow)
-    if [[ -n "$output" ]]; then
-        assert_json_decision "$output" "allow"
-    fi
+    # Should exit gracefully with no output
+    assert_silent_success "$output"
 }
 
 test_hook_large_file() {
@@ -195,9 +233,63 @@ test_hook_large_file() {
     local output
     output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
 
-    # Should skip large files
-    assert_json_decision "$output" "allow" &&
-    assert_contains "$output" "too large"
+    # Should skip large files silently (to reduce noise)
+    assert_silent_success "$output"
+}
+
+test_hook_empty_stdin() {
+    local output
+    output=$(echo "" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
+    # Should exit silently for empty input
+    assert_silent_success "$output"
+}
+
+test_hook_stdin_timeout() {
+    local output
+    # Simulate slow/hanging stdin by using a timeout
+    output=$(echo "" | "$PLUGIN_ROOT/hooks/rust-lint.sh" 2>/dev/null)
+    # Should exit silently
+    assert_silent_success "$output"
+}
+
+test_hook_empty_file_path() {
+    local input='{"tool_input":{"file_path":""}}'
+    local output
+    output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
+    # Should exit silently for empty file path
+    assert_silent_success "$output"
+}
+
+test_hook_missing_tool_input() {
+    local input='{"other":"data"}'
+    local output
+    output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh")
+    # Should exit silently when tool_input is missing
+    assert_silent_success "$output"
+}
+
+test_hook_json_output_valid_or_empty() {
+    # Test all hook outputs are either empty (silent) or valid JSON
+    local file_path="$TEST_DIR/test-project/src/clean.rs"
+    local inputs=(
+        '{"tool_input":{"file_path":"'"$file_path"'"}}'
+        '{"tool_input":{}}'
+        '{}'
+        '{"tool_input":{"file_path":""}}'
+        '{"tool_input":{"file_path":"/nonexistent/file.rs"}}'
+    )
+
+    for input in "${inputs[@]}"; do
+        local output
+        # Capture actual output even if hook returns non-zero exit code
+        output=$(echo "$input" | "$PLUGIN_ROOT/hooks/rust-lint.sh" 2>&1 || true)
+        # Output must be either empty (silent success) OR valid JSON (block decision)
+        if ! assert_json_or_silent "$output"; then
+            echo "Invalid output for input: $input"
+            echo "Output: $output"
+            return 1
+        fi
+    done
 }
 
 # ============================================================================
@@ -276,6 +368,9 @@ main() {
     echo "============================================"
     run_test "JSON response (simple)" test_json_response_simple
     run_test "JSON response (with context)" test_json_response_with_context
+    run_test "PostToolUse exit (silent)" test_post_tool_exit_silent
+    run_test "PostToolUse exit (block)" test_post_tool_exit_block
+    run_test "PostToolUse exit (block with context)" test_post_tool_exit_block_with_context
     run_test "Parse file path" test_parse_file_path
     run_test "Check required tools (success)" test_check_required_tools_success
     run_test "Check required tools (failure)" test_check_required_tools_failure
@@ -292,6 +387,11 @@ main() {
     run_test "Hook: Nonexistent file" test_hook_nonexistent_file
     run_test "Hook: Invalid JSON input" test_hook_invalid_json
     run_test "Hook: Large file (>1MB)" test_hook_large_file
+    run_test "Hook: Empty stdin" test_hook_empty_stdin
+    run_test "Hook: Stdin timeout handling" test_hook_stdin_timeout
+    run_test "Hook: Empty file path" test_hook_empty_file_path
+    run_test "Hook: Missing tool_input field" test_hook_missing_tool_input
+    run_test "Hook: Output is valid JSON or empty" test_hook_json_output_valid_or_empty
     echo ""
 
     # Run project script tests

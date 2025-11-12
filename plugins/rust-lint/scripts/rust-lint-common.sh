@@ -14,12 +14,13 @@ fi
 # JSON Response Generation
 # ============================================================================
 
-# Generate JSON response for hooks
+# Generate JSON response for PreToolUse hooks
 # Args:
-#   $1: decision (allow|block)
+#   $1: decision (allow|deny|ask)
 #   $2: reason (human-readable message)
-#   $3: event_name (optional, e.g., "PostToolUse")
+#   $3: event_name (optional, e.g., "PreToolUse")
 #   $4: context (optional, detailed additional info)
+# Note: For PreToolUse hooks, use "allow", "deny", or "ask" as permissionDecision
 _rl_json_response() {
     local decision="${1:-allow}"
     local reason="${2:-No reason provided}"
@@ -27,12 +28,13 @@ _rl_json_response() {
     local context="${4:-}"
 
     if ! command -v jq &>/dev/null; then
-        echo '{"error": "jq not available", "decision": "allow"}'
+        echo '{"error": "jq not available", "decision": "block"}'
         return 1
     fi
 
+    local output
     if [[ -n "$event_name" && -n "$context" ]]; then
-        jq -n \
+        output=$(jq -n \
             --arg decision "$decision" \
             --arg reason "$reason" \
             --arg event_name "$event_name" \
@@ -44,16 +46,99 @@ _rl_json_response() {
                     hookEventName: $event_name,
                     additionalContext: $context
                 }
-            }' 2>/dev/null
+            }' 2>/dev/null) || {
+            echo '{"decision": "block", "reason": "Error: jq execution failed while generating JSON response"}'
+            return 1
+        }
     else
-        jq -n \
+        output=$(jq -n \
             --arg decision "$decision" \
             --arg reason "$reason" \
             '{
                 decision: $decision,
                 reason: $reason
-            }' 2>/dev/null
+            }' 2>/dev/null) || {
+            echo '{"decision": "block", "reason": "Error: jq execution failed while generating JSON response"}'
+            return 1
+        }
     fi
+    echo "$output"
+}
+
+# Safely exit with JSON response (for PreToolUse or legacy usage)
+# Args:
+#   $1: decision (allow|deny|ask for PreToolUse; block for PostToolUse)
+#   $2: reason (human-readable message)
+#   $3: event_name (optional, e.g., "PostToolUse")
+#   $4: context (optional, detailed additional info)
+# Always exits with code 0 after outputting JSON
+_rl_safe_exit() {
+    _rl_json_response "$@"
+    exit 0
+}
+
+# Safely exit for PostToolUse hooks with correct output format
+# Args:
+#   $1: action - "silent" (no output), "suppress" (suppressOutput:true), or "block" (report error)
+#   $2: reason (optional, for block/suppress)
+#   $3: context (optional, additional details for block)
+# Per docs: PostToolUse "decision" can only be "block" or undefined
+# - Use "silent" for successful operations (exit 0, no output)
+# - Use "suppress" to exit with suppressOutput:true (alternative for success)
+# - Use "block" to report errors/warnings to Claude
+_rl_safe_exit_post_tool() {
+    local action="${1:-silent}"
+    local reason="${2:-}"
+    local context="${3:-}"
+
+    if ! command -v jq &>/dev/null; then
+        # Fallback if jq not available
+        echo '{"decision": "block", "reason": "jq not available for JSON generation"}' >&2
+        exit 1
+    fi
+
+    case "$action" in
+        silent)
+            # Exit with no output - for successful operations
+            # This is the recommended approach for PostToolUse success
+            exit 0
+            ;;
+        suppress)
+            # Exit with suppressOutput flag - alternative for success
+            echo '{"suppressOutput": true}'
+            exit 0
+            ;;
+        block)
+            # Report error/warning to Claude
+            # PostToolUse "decision": "block" automatically prompts Claude with reason
+            if [[ -n "$context" ]]; then
+                jq -n \
+                    --arg reason "$reason" \
+                    --arg context "$context" \
+                    '{
+                        decision: "block",
+                        reason: $reason,
+                        hookSpecificOutput: {
+                            hookEventName: "PostToolUse",
+                            additionalContext: $context
+                        }
+                    }' 2>/dev/null || {
+                    echo '{"decision": "block", "reason": "Error generating JSON response"}' >&2
+                    exit 1
+                }
+            else
+                jq -n --arg reason "$reason" '{decision: "block", reason: $reason}' 2>/dev/null || {
+                    echo '{"decision": "block", "reason": "Error generating JSON response"}' >&2
+                    exit 1
+                }
+            fi
+            exit 0
+            ;;
+        *)
+            echo '{"decision": "block", "reason": "Invalid action specified in hook"}' >&2
+            exit 1
+            ;;
+    esac
 }
 
 # ============================================================================
