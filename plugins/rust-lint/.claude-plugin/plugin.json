@@ -1,0 +1,22 @@
+{
+  "name": "rust-lint",
+  "version": "1.0.0",
+  "description": "Automatically format Rust files with rustfmt and provide on-demand clippy linting",
+  "author": {
+    "name": "Cheolwan Park",
+    "url": "https://github.com/cheolwanpark"
+  },
+  "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "rust",
+    "linting",
+    "formatting",
+    "rustfmt",
+    "clippy",
+    "static-analysis",
+    "code-quality",
+    "cargo"
+  ],
+  "hooks": "./hooks/hooks.json"
+}

@@ -1,0 +1,17 @@
+{
+  "description": "Automatically format Rust files after editing or writing",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/rust-lint.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+[package]
+name = "rust-lint-test-fixtures"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[lints.clippy]
+# Enable some clippy lints for testing
+unnecessary_cast = "warn"
+single_match = "warn"
+needless_return = "warn"
