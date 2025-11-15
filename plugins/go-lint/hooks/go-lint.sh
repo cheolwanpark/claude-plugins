@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
-set -euo pipefail
+#
+# Go Lint Hook
+# Automatically formats and checks Go files after Claude edits or writes them
+#
+# This hook:
+# 1. Runs goimports to format and fix imports
+# 2. Runs go vet to check for common mistakes
+#
+# NOTE: This hook does NOT run golangci-lint (too slow for per-file hooks).
+#       Use the /go-lint:lint-project command for comprehensive linting.
+#
 
-# Hook script for go-lint plugin
-# Runs goimports, golangci-lint (if available), and go vet on edited Go files
+set -euo pipefail
 
 # Setup paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,8 +26,18 @@ trap '_gol_safe_exit "allow" "Unexpected error in go-lint hook" "PostToolUse" "E
 # Constants
 MAX_FILE_SIZE=1048576  # 1MB
 
-# Read stdin input
-INPUT=$(cat)
+# Read stdin input with timeout to prevent indefinite hangs
+# Use timeout if available (GNU coreutils), otherwise fallback to cat
+if command -v timeout &>/dev/null; then
+    INPUT=$(timeout 5s cat 2>/dev/null || true)
+else
+    INPUT=$(cat)
+fi
+
+# If no input (timeout or empty), exit silently
+if [[ -z "$INPUT" ]]; then
+    exit 0
+fi
 
 # Parse file path from JSON input
 FILE_PATH=$(_gol_parse_file_path "$INPUT")
@@ -85,51 +104,6 @@ if [[ $GOIMPORTS_EXIT -ne 0 ]]; then
         "goimports formatting failed" \
         "PostToolUse" \
         "goimports error: $GOIMPORTS_OUTPUT"
-fi
-
-# Try to run golangci-lint if available and configured
-if command -v golangci-lint &>/dev/null; then
-    # Build config arguments
-    CONFIG_ARG=$(_gol_build_golangci_config_args "$PROJECT_ROOT")
-
-    # Run golangci-lint with JSON output (stdout only, discard stderr warnings)
-    # golangci-lint exits: 0=clean, 1=issues found, >1=error
-    GOLANGCI_EXIT=0
-    if [[ -n "$CONFIG_ARG" ]]; then
-        GOLANGCI_OUTPUT=$(cd "$PROJECT_ROOT" && golangci-lint run \
-            --out-format json \
-            "$CONFIG_ARG" \
-            "$FILE_ABS" 2>/dev/null) || GOLANGCI_EXIT=$?
-    else
-        GOLANGCI_OUTPUT=$(cd "$PROJECT_ROOT" && golangci-lint run \
-            --out-format json \
-            "$FILE_ABS" 2>/dev/null) || GOLANGCI_EXIT=$?
-    fi
-
-    # Check if output is valid JSON and parse issues
-    if [[ -n "$GOLANGCI_OUTPUT" ]] && echo "$GOLANGCI_OUTPUT" | jq -e '.Issues' &>/dev/null; then
-        # Valid JSON output - check for issues
-        ISSUE_COUNT=$(echo "$GOLANGCI_OUTPUT" | jq -r '.Issues | length' 2>/dev/null || echo "0")
-
-        if [[ "$ISSUE_COUNT" =~ ^[0-9]+$ ]] && [[ "$ISSUE_COUNT" -gt 0 ]]; then
-            # Format issues for display
-            FORMATTED_ISSUES=$(echo "$GOLANGCI_OUTPUT" | jq -r '
-                .Issues[] |
-                "\(.Pos.Filename):\(.Pos.Line):\(.Pos.Column): \(.Text) (\(.FromLinter))"
-            ' 2>/dev/null || echo "$GOLANGCI_OUTPUT")
-
-            _gol_safe_exit "block" \
-                "golangci-lint found $ISSUE_COUNT issue(s) in file" \
-                "PostToolUse" \
-                "$FORMATTED_ISSUES"
-        fi
-    elif [[ $GOLANGCI_EXIT -gt 1 ]]; then
-        # Runtime error (exit code >1 indicates tool failure, not linting issues)
-        _gol_safe_exit "allow" \
-            "golangci-lint encountered an error" \
-            "PostToolUse" \
-            "Tool exited with code $GOLANGCI_EXIT"
-    fi
 fi
 
 # Run go vet on just the package containing the edited file
