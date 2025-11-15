@@ -1,0 +1,21 @@
+{
+  "name": "go-lint",
+  "version": "1.0.0",
+  "description": "Automatic Go linting and formatting using goimports, go vet, and golangci-lint",
+  "author": {
+    "name": "useful-claude-plugins",
+    "url": "https://github.com/cheolwanpark/useful-claude-plugins"
+  },
+  "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "go",
+    "golang",
+    "lint",
+    "format",
+    "goimports",
+    "go-vet",
+    "golangci-lint"
+  ],
+  "hooks": "./hooks/hooks.json"
+}

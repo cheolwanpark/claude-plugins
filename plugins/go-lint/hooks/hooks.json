@@ -1,0 +1,17 @@
+{
+  "description": "Automatically lint and format Go files using goimports and go vet",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/go-lint.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
