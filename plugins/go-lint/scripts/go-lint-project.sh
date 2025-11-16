@@ -63,22 +63,51 @@ CONFIG_ARGS=$(_gol_build_golangci_config_args "$PROJECT_ROOT")
 
 # Run golangci-lint with JSON output
 # Use subshell to preserve working directory
+# NOTE: Don't capture stderr (no 2>&1) to avoid mixing error messages with JSON
 GOLANGCI_EXIT=0
 GOLANGCI_JSON=$(
-    cd "$PROJECT_ROOT" && golangci-lint run $CONFIG_ARGS --out-format=json --fix "$LINT_TARGET" 2>&1
+    cd "$PROJECT_ROOT" && golangci-lint run $CONFIG_ARGS --out-format=json --fix "$LINT_TARGET"
 ) || GOLANGCI_EXIT=$?
+
+# Handle empty output (no issues found)
+if [[ -z "$GOLANGCI_JSON" ]]; then
+    echo "## Go Linting Succeeded"
+    echo ""
+    echo "No issues found!"
+    echo ""
+    echo "**Target:** $LINT_TARGET"
+    echo "**Project root:** $PROJECT_ROOT"
+    exit 0
+fi
 
 # Parse JSON output - take the full JSON, not just first line
 # golangci-lint JSON is multi-line, so we need to parse it properly
-if [[ $GOLANGCI_EXIT -ne 0 && -z "$GOLANGCI_JSON" ]]; then
-    # Tool failed completely
-    echo "## Go Linting Failed"
-    echo ""
-    echo "golangci-lint exited with code $GOLANGCI_EXIT"
-    exit 1
+if [[ $GOLANGCI_EXIT -ne 0 ]]; then
+    # Validate JSON before attempting to parse
+    if ! echo "$GOLANGCI_JSON" | jq empty 2>/dev/null; then
+        # Not valid JSON - tool failed completely
+        echo "## Go Linting Failed"
+        echo ""
+        echo "golangci-lint exited with code $GOLANGCI_EXIT and produced invalid output:"
+        echo '```'
+        echo "$GOLANGCI_JSON"
+        echo '```'
+        exit 1
+    fi
 fi
 
 REPORT_JSON="$GOLANGCI_JSON"
+
+# Validate JSON structure before parsing
+if ! echo "$REPORT_JSON" | jq empty 2>/dev/null; then
+    echo "## Go Linting Failed"
+    echo ""
+    echo "golangci-lint produced invalid JSON output:"
+    echo '```'
+    echo "$REPORT_JSON"
+    echo '```'
+    exit 1
+fi
 
 # Extract issues
 ISSUES_JSON=$(echo "$REPORT_JSON" | jq -r '.Issues // []')
