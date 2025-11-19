@@ -32,7 +32,7 @@ const READ_ONLY_FILE_TOOLS = [
 export async function runGemini(prompt: string, cwd?: string): Promise<GeminiResponse> {
   return new Promise((resolve, reject) => {
     const args = [
-      '--prompt', prompt,
+      prompt,
       '--output-format', 'json',
       '--allowed-tools', READ_ONLY_FILE_TOOLS.join(',')
     ];

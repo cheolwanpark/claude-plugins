@@ -1,7 +1,6 @@
 # Dependencies
 
 # Build outputs
-dist/
 build/
 *.pyc
 __pycache__/
