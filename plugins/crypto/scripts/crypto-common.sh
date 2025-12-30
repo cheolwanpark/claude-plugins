@@ -182,6 +182,7 @@ _cry_is_using_fallback_rpc() {
 # Get API key for a chain's block explorer
 # Args: $1=chain name
 # Returns: API key on stdout (may be empty)
+# Falls back to ETHERSCAN_API_KEY if chain-specific key is not set
 _cry_get_api_key() {
     local chain
     chain=$(_cry_normalize_chain "${1:-ethereum}")
@@ -189,8 +190,16 @@ _cry_get_api_key() {
         return
     fi
 
+    # Try chain-specific key first
     local key_var="${_CRY_API_KEY_VARS[$chain]:-}"
-    echo "${(P)key_var:-}"
+    local api_key="${(P)key_var:-}"
+
+    # Fall back to ETHERSCAN_API_KEY if chain-specific key not set
+    if [[ -z "$api_key" && "$chain" != "ethereum" ]]; then
+        api_key="${ETHERSCAN_API_KEY:-}"
+    fi
+
+    echo "$api_key"
 }
 
 # Get explorer URL for a chain
@@ -438,6 +447,10 @@ _cry_print_api_key_warning() {
     echo "## Error: Missing API Key"
     echo ""
     echo "**Required:** \`export $key_var=\"your-key\"\`"
+    if [[ "$chain" != "ethereum" ]]; then
+        echo ""
+        echo "**Or use fallback:** \`export ETHERSCAN_API_KEY=\"your-key\"\`"
+    fi
     echo ""
     echo "Get free key: $explorer_url/apis"
 }
