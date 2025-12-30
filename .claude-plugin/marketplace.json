@@ -81,6 +81,17 @@
             },
             "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
             "license": "MIT"
+        },
+        {
+            "name": "crypto",
+            "description": "Multi-chain blockchain explorer using Foundry's cast CLI for Etherscan, Polygonscan, Arbiscan, and more",
+            "source": "./plugins/crypto",
+            "author": {
+                "name": "Cheolwan Park",
+                "url": "https://github.com/cheolwanpark"
+            },
+            "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+            "license": "MIT"
         }
     ]
 }
