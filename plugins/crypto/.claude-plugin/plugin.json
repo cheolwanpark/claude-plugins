@@ -1,0 +1,24 @@
+{
+  "name": "crypto",
+  "version": "1.0.0",
+  "description": "Multi-chain blockchain explorer integration using Foundry's cast CLI for Etherscan, Polygonscan, Arbiscan, and more",
+  "author": {
+    "name": "useful-claude-plugins",
+    "url": "https://github.com/cheolwanpark/useful-claude-plugins"
+  },
+  "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "ethereum",
+    "blockchain",
+    "etherscan",
+    "cast",
+    "foundry",
+    "polygon",
+    "arbitrum",
+    "optimism",
+    "base",
+    "bsc",
+    "smart-contracts"
+  ]
+}
