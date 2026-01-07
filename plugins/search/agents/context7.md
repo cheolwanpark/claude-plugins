@@ -1,8 +1,8 @@
 ---
-name: search
+name: context7
 description: Use this agent when the user mentions 'context7' OR when it's definitely a library question requiring more context. The agent searches Context7 documentation to answer focused library questions.
-tools: mcp__plugin_context7_context7__resolve-library-id, mcp__plugin_context7_context7__get-library-docs
-model: haiku
+tools: mcp__plugin_search_context7__resolve-library-id, mcp__plugin_search_context7__get-library-docs
+model: opus
 color: blue
 ---
 
