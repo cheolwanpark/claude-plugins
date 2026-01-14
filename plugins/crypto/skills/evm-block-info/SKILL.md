@@ -1,18 +1,18 @@
 ---
-name: block-info
-description: Use this skill when the user asks "block info", "what's in block", "latest block", "get block details", or mentions viewing block data on blockchain. Optional block number/tag and chain parameter.
+name: evm-block-info
+description: Use this skill when the user asks "block info", "what's in block", "latest block", "get block details", or mentions viewing block data on EVM chains (Ethereum, Polygon, Arbitrum, etc.). Optional block number/tag and chain parameter.
 allowed-tools: Bash
 ---
 
-# Block Info Fetcher
+# EVM Block Info Fetcher
 
-Gets information about a blockchain block.
+Gets block information from an EVM blockchain network.
 
 ## Usage
 
 Run the script with optional block and chain:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/crypto-block-info.sh [block] [chain]
+${CLAUDE_PLUGIN_ROOT}/scripts/crypto-evm-block-info.sh [block] [chain]
 ```
 
 ## Arguments
@@ -34,17 +34,18 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/crypto-block-info.sh [block] [chain]
 ## Requirements
 
 - `cast` (Foundry) must be installed
-- RPC URL must be set for the target chain
+- RPC URL is optional (uses PublicNode fallback)
 
 ## Examples
 
 ```bash
 # Get latest block on Ethereum
-${CLAUDE_PLUGIN_ROOT}/scripts/crypto-block-info.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/crypto-evm-block-info.sh
 
-# Get specific block
-${CLAUDE_PLUGIN_ROOT}/scripts/crypto-block-info.sh 18000000
-
-# Get latest block on Polygon
-${CLAUDE_PLUGIN_ROOT}/scripts/crypto-block-info.sh latest polygon
+# Get specific block on Polygon
+${CLAUDE_PLUGIN_ROOT}/scripts/crypto-evm-block-info.sh 50000000 polygon
 ```
+
+## Note
+
+For Solana slot/block info, use the `sol-slot-info` skill instead.

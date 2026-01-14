@@ -1,17 +1,23 @@
 # Crypto Plugin
 
-Multi-chain blockchain explorer integration using Foundry's `cast` CLI. Query contract source code, balances, transactions, gas prices, and blocks across Ethereum, Polygon, Arbitrum, Optimism, Base, and BSC.
+Multi-chain blockchain explorer integration supporting **EVM chains** (via Foundry's `cast`) and **Solana** (via Solana/Anchor CLI). Query contract source code, balances, transactions, fees, and blocks across multiple networks.
 
 ## Features
 
-- **Multi-chain support**: Ethereum, Polygon, Arbitrum, Optimism, Base, BSC
+### EVM Chains (Ethereum, Polygon, Arbitrum, Optimism, Base, BSC)
 - **Zero-config RPC**: Works out of the box with PublicNode fallback endpoints
-- **Auto-triggered skills**: Claude automatically uses these based on your intent
 - **Contract inspection**: Fetch verified source code from block explorers
 - **Address information**: Check balances and account types (EOA vs contract)
 - **Transaction lookup**: Get detailed transaction data
 - **Gas prices**: Check current gas costs with transaction estimates
 - **Block information**: Query block data
+
+### Solana
+- **Public RPC fallback**: Uses Solana public RPC by default
+- **Account inspection**: Check SOL balances and account types
+- **Transaction lookup**: Get transaction details by signature
+- **Slot/Block info**: Query current slot and epoch data
+- **Program IDL**: Fetch Anchor program IDL from on-chain
 
 ## Installation
 
@@ -21,27 +27,39 @@ Multi-chain blockchain explorer integration using Foundry's `cast` CLI. Query co
    - macOS: Pre-installed (default shell)
    - Linux: Install with your package manager if needed
 
-2. **Foundry (cast)** - Install the Foundry toolkit:
+2. **For EVM skills** - Install Foundry toolkit:
    ```bash
    curl -L https://foundry.paradigm.xyz | bash
    foundryup
    ```
 
-3. **Verify installation**:
+3. **For Solana skills** - Install Solana CLI:
+   ```bash
+   sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+   export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+   ```
+
+4. **For IDL fetching** - Install Anchor CLI (optional):
+   ```bash
+   cargo install --git https://github.com/coral-xyz/anchor anchor-cli --locked
+   ```
+
+5. **Verify installation**:
    ```bash
    zsh --version
-   cast --version
+   cast --version      # For EVM skills
+   solana --version    # For Solana skills
+   anchor --version    # For IDL skill (optional)
    ```
 
 ### Environment Variables
 
 Add to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
 
-#### RPC URLs (optional - has free fallback)
+#### EVM RPC URLs (optional - has free fallback)
 
-**No configuration required!** The plugin automatically uses [PublicNode](https://publicnode.com) as a free fallback when environment variables are not set.
+**No configuration required!** The plugin automatically uses [PublicNode](https://publicnode.com) as a free fallback.
 
-The fallback endpoints are:
 | Chain | Fallback RPC URL |
 |-------|------------------|
 | Ethereum | `https://ethereum-rpc.publicnode.com` |
@@ -51,24 +69,27 @@ The fallback endpoints are:
 | Base | `https://base-rpc.publicnode.com` |
 | BSC | `https://bsc-rpc.publicnode.com` |
 
-For higher rate limits or private endpoints, set your own RPC URLs:
-
+For higher rate limits, set your own RPC URLs:
 ```bash
-# Optional: Override with your own RPC endpoints
 export ETHEREUM_RPC_URL="https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"
 export POLYGON_RPC_URL="https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY"
-export ARBITRUM_RPC_URL="https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY"
-export OPTIMISM_RPC_URL="https://opt-mainnet.g.alchemy.com/v2/YOUR_KEY"
-export BASE_RPC_URL="https://base-mainnet.g.alchemy.com/v2/YOUR_KEY"
-export BSC_RPC_URL="https://bsc-dataseed.binance.org"
+# ... etc
 ```
 
-You can get private RPC endpoints from:
-- [Alchemy](https://www.alchemy.com/) (free tier available)
-- [Infura](https://infura.io/) (free tier available)
-- [QuickNode](https://www.quicknode.com/) (free tier available)
+#### Solana RPC URLs (optional - has free fallback)
 
-#### API Keys (required for contract-source skill)
+| Chain | Fallback RPC URL |
+|-------|------------------|
+| Solana | `https://api.mainnet-beta.solana.com` |
+| Solana Devnet | `https://api.devnet.solana.com` |
+
+For better performance, configure a custom RPC:
+```bash
+export SOLANA_RPC_URL="https://your-helius-endpoint.com"
+export SOLANA_DEVNET_RPC_URL="https://your-devnet-endpoint.com"
+```
+
+#### API Keys (required for evm-contract-source skill)
 
 ```bash
 export ETHERSCAN_API_KEY="your-key"
@@ -79,130 +100,108 @@ export BASESCAN_API_KEY="your-key"
 export BSCSCAN_API_KEY="your-key"
 ```
 
-Get free API keys from:
-- [Etherscan](https://etherscan.io/apis)
-- [Polygonscan](https://polygonscan.com/apis)
-- [Arbiscan](https://arbiscan.io/apis)
-- [Optimism Etherscan](https://optimistic.etherscan.io/apis)
-- [Basescan](https://basescan.org/apis)
-- [BSCScan](https://bscscan.com/apis)
+Get free API keys from: [Etherscan](https://etherscan.io/apis), [Polygonscan](https://polygonscan.com/apis), [Arbiscan](https://arbiscan.io/apis), [Optimism Etherscan](https://optimistic.etherscan.io/apis), [Basescan](https://basescan.org/apis), [BSCScan](https://bscscan.com/apis)
 
 ## Skills
 
-These skills are **auto-triggered** by Claude based on your intent. No `/command` needed!
+All skills are **auto-triggered** by Claude based on your intent. No `/command` needed!
 
-### Contract Source
+### EVM Skills (`evm-*`)
 
-Fetch verified contract source code from block explorers.
-
-**Trigger phrases**: "get contract source", "show verified contract", "fetch source from etherscan"
-
-**Requirements**: API key for the target chain
+| Skill | Trigger Phrases | Requirements |
+|-------|-----------------|--------------|
+| `evm-contract-source` | "get contract source", "show verified contract" | API key |
+| `evm-address-info` | "check balance", "is this a contract" | None |
+| `evm-tx-info` | "transaction details", "show me tx" | None |
+| `evm-gas-price` | "gas price", "current gas" | None |
+| `evm-block-info` | "block info", "latest block" | None |
 
 **Example prompts**:
 - "Show me the source code for WETH at 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
-- "Get the verified contract code for Uniswap Router on Polygon"
-
-### Address Info
-
-Get balance and account type (EOA vs contract) for an address.
-
-**Trigger phrases**: "check balance", "what's the balance of", "is this a contract"
-
-**Requirements**: None (uses PublicNode fallback if RPC not configured)
-
-**Example prompts**:
 - "What's the balance of vitalik.eth?"
-- "Check if 0x1234... is a contract or EOA on Arbitrum"
-
-### Transaction Info
-
-Get detailed information about a transaction.
-
-**Trigger phrases**: "transaction details", "show me tx", "what happened in this transaction"
-
-**Requirements**: None (uses PublicNode fallback if RPC not configured)
-
-**Example prompts**:
-- "Show me the details of transaction 0x1234...abcd"
-- "What happened in this tx on Polygon: 0x5678..."
-
-### Gas Price
-
-Get current gas price with transaction cost estimates.
-
-**Trigger phrases**: "gas price", "how much is gas", "current gas"
-
-**Requirements**: None (uses PublicNode fallback if RPC not configured)
-
-**Example prompts**:
 - "What's the current gas price on Ethereum?"
 - "Check gas fees on Arbitrum"
 
-### Block Info
+### Solana Skills (`sol-*`)
 
-Get information about a specific block.
-
-**Trigger phrases**: "block info", "what's in block", "latest block"
-
-**Requirements**: None (uses PublicNode fallback if RPC not configured)
+| Skill | Trigger Phrases | Requirements |
+|-------|-----------------|--------------|
+| `sol-account-info` | "solana balance", "is this a program" | `solana` CLI |
+| `sol-tx-info` | "solana transaction", "signature details" | `solana` CLI |
+| `sol-slot-info` | "current slot", "solana block" | `solana` CLI |
+| `sol-fees` | "solana fees", "priority fees" | `solana` CLI |
+| `sol-program-idl` | "fetch IDL", "anchor idl" | `anchor` CLI |
 
 **Example prompts**:
-- "Show me the latest block on Ethereum"
-- "Get block 18000000 details"
+- "What's the balance of vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg on Solana?"
+- "Check current slot on Solana"
+- "What are the current fees on Solana?"
+- "Fetch the IDL for MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD"
 
 ## Supported Chains
 
-| Chain | Aliases | Chain ID | Explorer |
-|-------|---------|----------|----------|
-| ethereum | eth, mainnet | 1 | Etherscan |
-| polygon | matic | 137 | Polygonscan |
-| arbitrum | arb | 42161 | Arbiscan |
-| optimism | op | 10 | Optimism Etherscan |
-| base | - | 8453 | Basescan |
-| bsc | binance, bnb | 56 | BSCScan |
+### EVM Chains
+
+| Chain | Aliases | Chain ID | Native Token | Explorer |
+|-------|---------|----------|--------------|----------|
+| ethereum | eth, mainnet | 1 | ETH | Etherscan |
+| polygon | matic | 137 | MATIC | Polygonscan |
+| arbitrum | arb | 42161 | ETH | Arbiscan |
+| optimism | op | 10 | ETH | Optimism Etherscan |
+| base | - | 8453 | ETH | Basescan |
+| bsc | binance, bnb | 56 | BNB | BSCScan |
+
+### Solana Chains
+
+| Chain | Aliases | Network | Native Token | Explorer |
+|-------|---------|---------|--------------|----------|
+| solana | sol | mainnet-beta | SOL | Solana Explorer |
+| solana-devnet | sol-devnet, devnet | devnet | SOL | Solana Explorer |
 
 ## Test Addresses
 
-Use these well-known addresses to verify your setup:
-
-### Ethereum Mainnet
+### EVM (Ethereum Mainnet)
 - **WETH**: `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2`
 - **USDC**: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
 - **Uniswap V2 Router**: `0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`
 
-### Polygon
-- **USDC**: `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
-- **QuickSwap Router**: `0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff`
+### Solana
+- **Token Program**: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`
+- **Marinade Finance (has IDL)**: `MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD`
+- **Test Wallet**: `vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg`
 
 ## Troubleshooting
 
 ### "cast not found"
-
 Install Foundry:
 ```bash
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
 ```
 
-### "API key not configured"
+### "solana not found"
+Install Solana CLI:
+```bash
+sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+```
 
+### "anchor not found"
+Install Anchor CLI (requires Rust):
+```bash
+cargo install --git https://github.com/coral-xyz/anchor anchor-cli --locked
+```
+
+### "API key not configured"
 Set the API key for contract source fetching:
 ```bash
 export ETHERSCAN_API_KEY="your-key"
 ```
 
-### "Contract not verified"
-
-The contract source is not available on the block explorer. You can still:
-- Check the address balance with the address-info skill
-- View transaction data with the tx-info skill
-
 ### Rate Limiting
-
-If you hit rate limits with the PublicNode fallback:
-- Configure your own RPC endpoints (see Environment Variables section)
-- Use providers with higher free tier limits (Alchemy, Infura, QuickNode)
+If you hit rate limits with public fallback endpoints:
+- Configure your own RPC endpoints (see Environment Variables)
+- Use providers like Alchemy, Infura, QuickNode, or Helius
 - Upgrade to a paid API plan for production use
 
 ## License

@@ -7,8 +7,9 @@ set -euo pipefail
 # Setup paths
 SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 
-# Source common library
+# Source libraries
 source "$SCRIPT_DIR/crypto-common.sh"
+source "$SCRIPT_DIR/crypto-evm.sh"
 
 # Parse arguments
 CHAIN="${1:-ethereum}"
@@ -20,6 +21,14 @@ if [[ -z "$CHAIN" ]]; then
     _cry_print_error "Invalid chain specified"
     echo ""
     _cry_print_supported_chains
+    exit 1
+fi
+
+# Validate EVM chain
+if ! _cry_is_evm_chain "$CHAIN"; then
+    _cry_print_error "This skill is for EVM chains only. Use sol-fees for Solana."
+    echo ""
+    _cry_print_evm_supported_chains
     exit 1
 fi
 
