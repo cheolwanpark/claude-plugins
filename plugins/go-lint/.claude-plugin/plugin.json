@@ -16,6 +16,5 @@
     "goimports",
     "go-vet",
     "golangci-lint"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }

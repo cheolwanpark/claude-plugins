@@ -15,6 +15,5 @@
     "type-checking",
     "react",
     "jsx"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }

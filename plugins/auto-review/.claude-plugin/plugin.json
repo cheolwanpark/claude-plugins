@@ -8,6 +8,5 @@
   },
   "repository": "https://github.com/cheolwanpark/useful-claude-plugins",
   "license": "MIT",
-  "keywords": ["review", "gemini", "codex", "automation", "code-quality"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["review", "gemini", "codex", "automation", "code-quality"]
 }

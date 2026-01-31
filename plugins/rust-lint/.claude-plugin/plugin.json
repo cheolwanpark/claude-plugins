@@ -17,6 +17,5 @@
     "static-analysis",
     "code-quality",
     "cargo"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }

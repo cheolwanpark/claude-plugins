@@ -17,6 +17,5 @@
     "pyright",
     "static-analysis",
     "code-quality"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }
